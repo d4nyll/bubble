@@ -103,16 +103,18 @@
 
   <div class="filters">
     <label>Good-news cut-off (good_score ≥)
-      <input id="cutoff" type="number" min="0" max="1" step="0.05" value="0.5">
+      <input id="cutoff" type="number" min="0" max="1" step="0.05" value="0.8">
     </label>
   </div>
 
   <div id="root">
     <div class="kpis">
       <div class="card kpi"><div class="label">Articles stored</div><div class="value" id="k-total">–</div></div>
-      <div class="card kpi"><div class="label">Classified</div><div class="value" id="k-classified">–</div></div>
-      <div class="card kpi"><div class="label">Waiting for classifier</div><div class="value" id="k-queued">–</div></div>
-      <div class="card kpi"><div class="label">Good news (shown on site)</div><div class="value" id="k-good">–</div></div>
+      <div class="card kpi"><div class="label">Shown on site</div><div class="value" id="k-shown">–</div></div>
+      <div class="card kpi"><div class="label">Waiting for classifier</div><div class="value" id="k-classify">–</div></div>
+      <div class="card kpi"><div class="label">Waiting for embedder</div><div class="value" id="k-embed">–</div></div>
+      <div class="card kpi"><div class="label">Hidden as duplicates</div><div class="value" id="k-duplicates">–</div></div>
+      <div class="card kpi"><div class="label">Hidden as not credible</div><div class="value" id="k-credibility">–</div></div>
     </div>
 
     <div class="grid">
@@ -123,16 +125,41 @@
       </figure>
 
       <figure class="card" style="margin:0">
-        <h2>Classifier score distribution</h2>
-        <p class="caption">Classified articles by good_score, in bins of 0.1</p>
+        <h2>Good-news score distribution</h2>
+        <p class="caption">Articles scored by the current classifier, by good_score, in bins of 0.1</p>
         <div class="legend"><span><i style="background:var(--series-1)"></i>At or above the cut-off</span><span><i style="background:var(--deemph)"></i>Below the cut-off</span></div>
         <div id="c-scores"></div>
       </figure>
 
       <figure class="card" style="margin:0">
-        <h2>Classified articles per category</h2>
-        <p class="caption">All classified articles, whatever their score</p>
+        <h2>Credibility score distribution</h2>
+        <p class="caption">Articles scored by the current classifier, by credibility_score. The site hides gray bins.</p>
+        <div class="legend"><span><i style="background:var(--series-1)"></i>Shown</span><span><i style="background:var(--deemph)"></i>Hidden as not credible</span></div>
+        <div id="c-credibility"></div>
+      </figure>
+
+      <figure class="card" style="margin:0">
+        <h2>Articles per category</h2>
+        <p class="caption">Classified articles, whatever their score. Hover for how many the site shows.</p>
         <div id="c-categories"></div>
+      </figure>
+
+      <figure class="card" style="margin:0">
+        <h2>Articles per kind of good news</h2>
+        <p class="caption">Classified articles, whatever their score. Hover for how many the site shows.</p>
+        <div id="c-kinds"></div>
+      </figure>
+
+      <figure class="card" style="margin:0">
+        <h2>Top 15 topics</h2>
+        <p class="caption">Articles tagged with each topic by the embedder</p>
+        <div id="c-topics"></div>
+      </figure>
+
+      <figure class="card" style="margin:0">
+        <h2>Top 15 countries</h2>
+        <p class="caption">Articles from regional outlets, by the outlet's country. Hover for how many the site shows.</p>
+        <div id="c-countries"></div>
       </figure>
 
       <section class="card">
@@ -143,7 +170,7 @@
 
       <section class="card wide">
         <h2>Latest 50 articles</h2>
-        <p class="caption">Newest first. "Queued" means the classifier hasn't processed it yet.</p>
+        <p class="caption">Newest first. "Queued" means the classifier hasn't scored it with the current questions yet.</p>
         <div id="t-recent"></div>
       </section>
     </div>
@@ -207,12 +234,34 @@ function columns(rows, unit) {
   return [plot, axis, tableView([['Bucket'], [unit, 'num']], rows.map((r) => [[r.label], [fmt(r.value), 'num']]))];
 }
 
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+const countryName = (code) => { try { return regionNames.of(code); } catch { return code; } };
+
+// rows: [{ label, value, detail? }]
+function hbarChart(rows, nameHeader) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  const chart = el('div', { className: 'hbars' });
+  for (const r of rows) {
+    const row = el('div', { className: 'hrow' },
+      el('div', { className: 'hbar', style: `width:${(r.value / max) * 85}%` }),
+      el('span', { className: 'hval', textContent: fmt(r.value) }));
+    hoverable(row, `${fmt(r.value)} articles`, r.detail ? `${r.label}, ${r.detail}` : r.label);
+    chart.append(el('span', { className: 'name', textContent: r.label }), row);
+  }
+  const hasDetail = rows.some((r) => r.detail);
+  return [chart, tableView(
+    [[nameHeader], ['Articles', 'num'], ...(hasDetail ? [['Detail']] : [])],
+    rows.map((r) => [[r.label], [fmt(r.value), 'num'], ...(hasDetail ? [[r.detail ?? '']] : [])]))];
+}
+
 function render(data, cutoff) {
   const t = data.totals;
   $('k-total').textContent = fmt(t.total);
-  $('k-classified').textContent = fmt(t.classified);
-  $('k-queued').textContent = fmt(t.queued);
-  $('k-good').textContent = fmt(t.good);
+  $('k-shown').textContent = fmt(t.shown);
+  $('k-classify').textContent = fmt(t.classify_queue);
+  $('k-embed').textContent = fmt(t.embed_queue);
+  $('k-duplicates').textContent = fmt(t.duplicates);
+  $('k-credibility').textContent = fmt(t.low_credibility);
 
   // 24 hourly slots ending with the current hour, in UTC to match the DB.
   const byHour = new Map(data.perHour.map((r) => [r.hour, r.count]));
@@ -235,31 +284,40 @@ function render(data, cutoff) {
   }));
   $('c-scores').replaceChildren(...columns(bins, 'articles'));
 
-  const maxCat = Math.max(1, ...data.categories.map((c) => c.count));
-  const hbars = el('div', { className: 'hbars' });
-  for (const c of data.categories) {
-    const row = el('div', { className: 'hrow' },
-      el('div', { className: 'hbar', style: `width:${(c.count / maxCat) * 85}%; ${c.count ? '' : 'width:0'}` }),
-      el('span', { className: 'hval', textContent: fmt(c.count) }));
-    hoverable(row, `${fmt(c.count)} classified`, `${c.label}, ${fmt(c.good)} at or above the cut-off`);
-    hbars.append(el('span', { className: 'name', textContent: c.label }), row);
-  }
-  $('c-categories').replaceChildren(hbars, tableView(
-    [['Category'], ['Classified', 'num'], ['Good', 'num']],
-    data.categories.map((c) => [[c.label], [fmt(c.count), 'num'], [fmt(c.good), 'num']])));
+  const credBins = new Map(data.credibility.map((r) => [r.bin, r.count]));
+  $('c-credibility').replaceChildren(...columns(Array.from({ length: 10 }, (_, b) => ({
+    label: `credibility_score ${(b / 10).toFixed(1)}–${((b + 1) / 10).toFixed(1)}`,
+    tick: (b / 10).toFixed(1),
+    value: credBins.get(b) ?? 0,
+    deemph: b / 10 < data.minCredibility - 1e-9,
+  })), 'articles'));
+
+  const withShown = (r) => ({ label: r.label, value: r.count, detail: `${fmt(r.shown)} shown on the site` });
+  $('c-categories').replaceChildren(...hbarChart(data.categories.map(withShown), 'Category'));
+  $('c-kinds').replaceChildren(...hbarChart(data.kinds.map(withShown), 'Kind'));
+  $('c-topics').replaceChildren(...hbarChart(data.topics.map((r) => ({ label: r.label, value: r.count })), 'Topic'));
+  $('c-countries').replaceChildren(...hbarChart(
+    data.countries.map((r) => ({ ...withShown(r), label: countryName(r.code) })), 'Country'));
 
   $('t-sources').replaceChildren(table(
-    [['Source'], ['Stored', 'num'], ['Classified', 'num'], ['Avg score', 'num'], ['Last fetched']],
-    data.sources.map((s) => [[s.source], [fmt(s.total), 'num'], [fmt(s.classified), 'num'],
-      [s.avg_score == null ? '–' : s.avg_score.toFixed(2), 'num'], [localTime(s.last_fetched), 'time']])));
+    [['Source'], ['Stored', 'num'], ['Classified', 'num'], ['Shown', 'num'], ['Avg good', 'num'], ['Avg credibility', 'num'], ['Last fetched']],
+    data.sources.map((s) => [[s.source], [fmt(s.total), 'num'], [fmt(s.classified), 'num'], [fmt(s.shown), 'num'],
+      [s.avg_score == null ? '–' : s.avg_score.toFixed(2), 'num'],
+      [s.avg_credibility == null ? '–' : s.avg_credibility.toFixed(2), 'num'], [localTime(s.last_fetched), 'time']])));
 
   $('t-recent').replaceChildren(table(
-    [['Fetched'], ['Source'], ['Outlet section'], ['Title'], ['Category'], ['Score', 'num']],
+    [['Fetched'], ['Source'], ['Title'], ['Category'], ['Kind'], ['Topics'], ['Good', 'num'], ['Credibility', 'num']],
     data.recent.map((a) => [
-      [localTime(a.fetched_at), 'time'], [a.source], [a.source_category ?? '–'],
-      el('a', { href: a.url, target: '_blank', rel: 'noopener', textContent: a.title }),
+      [localTime(a.fetched_at), 'time'],
+      [a.source_country ? `${a.source} (${a.source_country})` : a.source],
+      el('span', {},
+        el('a', { href: a.url, target: '_blank', rel: 'noopener', textContent: a.title }),
+        a.duplicate_of ? el('span', { className: 'queued', textContent: ` · copy of #${a.duplicate_of}, hidden` }) : ''),
       a.category ? [a.category] : ['Queued', 'queued'],
+      a.kind ? [a.kind] : ['Queued', 'queued'],
+      a.embedded ? [a.topics ?? '–'] : ['Queued', 'queued'],
       a.good_score == null ? ['–', 'num queued'] : [a.good_score.toFixed(2), 'num'],
+      a.credibility_score == null ? ['–', 'num queued'] : [a.credibility_score.toFixed(2), 'num'],
     ])));
 }
 
