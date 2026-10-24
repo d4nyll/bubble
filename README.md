@@ -39,6 +39,12 @@ A news aggregator that shows only good news.
 - `articles.source_country`: the ISO 3166-1 alpha-2 code (such as `NG`) of the outlet's home country, from `ingest/feeds.ts`. NULL for international outlets, journals and Reddit. `new Intl.DisplayNames(['en'], { type: 'region' }).of('NG')` turns a code into "Nigeria".
 - `articles.duplicate_of`: when several outlets cover the same story, every article after the first points to the first one's `id`. Show the articles where it's NULL, and count the ones pointing at each to show "covered by N outlets".
 
+### Tuning what counts as good
+
+`ingest/good.ts` defines good news, the yes/no questions Laya answers, and how `goodScore()` combines the answers into `good_score`. It also holds headlines that Daniel and Vat scored by hand. `npm run calibrate` (in `ingest/`) scores those headlines and prints how far `good_score` is from the hand-given score. Add a headline whenever the site gets one wrong.
+
+After changing `good.ts`, restart `npm run ingest-server`. To score every stored article again, run `sqlite3 db/bubble.db "UPDATE articles SET good_kind = NULL"`. The classifier treats articles with no `good_kind` as its queue, scores new articles first, and the old scores stay on the site until it replaces them.
+
 ### Migrating an existing database
 
 You don't need to do anything. `connect()` in `db/db.ts` checks the database every time a process opens it:

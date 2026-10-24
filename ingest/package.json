@@ -5,7 +5,8 @@
   "scripts": {
     "typecheck": "tsc -p .",
     "admin": "node admin.ts",
-    "ingest-server": "node server.ts"
+    "ingest-server": "node server.ts",
+    "calibrate": "node calibrate.ts"
   },
   "keywords": [],
   "author": "",
