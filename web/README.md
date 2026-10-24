@@ -40,7 +40,7 @@ The homepage at `/` shows the latest 10 articles. Each category has a URL based 
 
 ## What you share with Daniel
 
-The `articles` and `categories` tables in `../db/schema.sql`, and their TypeScript types in `../db/types.ts`. Daniel's ingest job writes the rows and your API only reads them.
+The `articles`, `categories` and `good_kinds` tables in `../db/schema.sql`, and their TypeScript types in `../db/types.ts`. Daniel's ingest job writes the rows and your API only reads them. The root [`README.md`](../README.md#the-interface) describes every column.
 
 - `articles.good_score` is the classifier's probability (0 to 1) that the article is good news. Your API decides the cut-off. `/api/articles` uses `min_score`, which defaults to 0.8.
 - `articles.category` and `articles.good_score` are NULL until Daniel's classifier has processed the article. The API's `good_score >= min_score` check already leaves those rows out, so the frontend only sees classified articles.
@@ -48,4 +48,4 @@ The `articles` and `categories` tables in `../db/schema.sql`, and their TypeScri
 - `summary` is plain text with no HTML.
 - `published_at` can be null. Fall back to `fetched_at`.
 
-To change a table, agree it with Daniel first, then edit `schema.sql` and `types.ts` in the same commit. Delete `db/bubble.db` afterwards, because `schema.sql` only creates tables that don't exist yet.
+After pulling a schema change, restart `npm run api`. It migrates your existing database when it opens it, and keeps your articles. To change the schema yourself, agree it with Daniel first and follow [Changing the schema](../README.md#changing-the-schema).

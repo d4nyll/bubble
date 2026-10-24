@@ -10,6 +10,15 @@ export interface Category {
   position: number;
 }
 
+export type GoodKindId = 'breakthrough' | 'nature' | 'systems' | 'peace' | 'inspiring' | 'kindness';
+
+export interface GoodKind {
+  id: GoodKindId;
+  label: string;
+  description: string;
+  position: number;
+}
+
 export interface Article {
   id: number;
   url: string;
@@ -20,6 +29,10 @@ export interface Article {
   image_url: string | null;
   published_at: string | null;
   fetched_at: string;
-  category: CategoryId | null;  // null until classified
-  good_score: number | null;    // null until classified
+  source_country: string | null;   // ISO 3166-1 alpha-2, e.g. 'NG'; null for international outlets
+  duplicate_of: number | null;     // id of the first article for the same story; null if this is it
+  category: CategoryId | null;     // null until classified
+  good_score: number | null;       // null until classified
+  good_kind: GoodKindId | null;    // null until classified
+  news_score: number | null;       // null until classified
 }

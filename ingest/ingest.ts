@@ -15,8 +15,10 @@ const USER_AGENT = 'bubble-news-aggregator/0.1 (https://github.com/d4nyll/bubble
 
 const db = connect();
 const insert = db.prepare(`
-  INSERT OR IGNORE INTO articles (url, source, source_category, title, summary, image_url, published_at)
-  VALUES (:url, :source, :source_category, :title, :summary, :image_url, :published_at)`);
+  INSERT OR IGNORE INTO articles (url, source, source_category, title, summary, image_url, published_at, source_country)
+  VALUES (:url, :source, :source_category, :title, :summary, :image_url, :published_at, :source_country)`);
+// Fills in the country on articles stored before the source_country column existed.
+const backfillCountry = db.prepare('UPDATE articles SET source_country = ? WHERE url = ? AND source_country IS NULL');
 
 type Row = {
   url: string;
@@ -140,7 +142,10 @@ export const fetchFeed = (feed: Feed) => (feed.kind === 'wordpress' ? fetchWordP
 async function ingest(feed: Feed) {
   const rows = await fetchFeed(feed);
   let added = 0;
-  for (const row of rows) added += Number(insert.run({ ...row, source: feed.source }).changes);
+  for (const row of rows) {
+    added += Number(insert.run({ ...row, source: feed.source, source_country: feed.country ?? null }).changes);
+    if (feed.country) backfillCountry.run(feed.country, row.url);
+  }
   console.log(`ingest: ${feed.source} ${feed.url}: ${rows.length} items, ${added} new`);
 }
 
