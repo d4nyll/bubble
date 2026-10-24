@@ -41,13 +41,12 @@ Working on the API or frontend only? Follow [`web/README.md`](web/README.md) ins
 
 Requires Node.js 24 (it runs `.ts` files directly and has `node:sqlite` built in).
 
-Ingest and classify run as two separate processes, in two terminals in `ingest/`. Ingest stores new articles every 10 minutes with `category` and `good_score` left NULL. Classify polls for those rows and fills both in. The first classify run downloads ~1.7 GB of Laya weights.
+`npm run ingest-server` runs ingest and classify together in one process, and stopping it stops both. Ingest stores new articles every 10 minutes with `category` and `good_score` left NULL. Classify polls for those rows and fills both in. The first run downloads ~1.7 GB of Laya weights. The admin dashboard is a separate server.
 
 ```sh
 npm install
-npm run ingest     # terminal 1
-npm run classify   # terminal 2
-npm run admin      # optional, terminal 3: dashboard on http://localhost:3002
+npm run ingest-server   # terminal 1
+npm run admin           # optional, terminal 2: dashboard on http://localhost:3002
 ```
 
 Web, using two terminals in `web/`:

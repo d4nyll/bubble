@@ -1,5 +1,5 @@
-// Fetch RSS feeds and store new articles unclassified. Run: npm run ingest
-// classify.ts picks them up separately.
+// Fetch RSS feeds every 10 minutes and store new articles unclassified.
+// classify.ts picks them up. Started by server.ts.
 import Parser from 'rss-parser';
 import { connect } from '../db/db.ts';
 
@@ -37,13 +37,15 @@ async function ingest(source: string, feedUrl: string) {
       published_at: item.isoDate ?? null,
     }).changes);
   }
-  console.log(`${source}: ${feed.items.length} items, ${added} new`);
+  console.log(`ingest: ${source}: ${feed.items.length} items, ${added} new`);
 }
 
-while (true) {
-  for (const [source, feedUrl] of Object.entries(FEEDS)) {
-    // One broken feed shouldn't stop the others.
-    await ingest(source, feedUrl).catch((err) => console.error(`${source}: ${err.message}`));
+export async function runIngest() {
+  while (true) {
+    for (const [source, feedUrl] of Object.entries(FEEDS)) {
+      // One broken feed shouldn't stop the others.
+      await ingest(source, feedUrl).catch((err) => console.error(`ingest: ${source}: ${err.message}`));
+    }
+    await new Promise((resolve) => setTimeout(resolve, INTERVAL_MS));
   }
-  await new Promise((resolve) => setTimeout(resolve, INTERVAL_MS));
 }

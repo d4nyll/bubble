@@ -3,10 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "ingest": "node ingest.ts",
     "typecheck": "tsc -p .",
-    "classify": "node classify.ts",
-    "admin": "node admin.ts"
+    "admin": "node admin.ts",
+    "ingest-server": "node server.ts"
   },
   "keywords": [],
   "author": "",
