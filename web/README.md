@@ -26,6 +26,10 @@ npm run dev   # React app on http://localhost:5173
 
 Vite forwards every `/api` request from port 5173 to the API on port 3001, so the React code calls `fetch('/api/...')` with no host.
 
+The homepage at `/` shows the latest 10 articles. Each category has a URL based on its ID, such as `/technology` or `/world`. Category pages show 20 articles at a time and provide a load-more button.
+
+`GET /api/articles` supports `min_score`, `category`, `limit`, and `page` query parameters. It defaults to a score of 0.8 and sorts articles newest first.
+
 ## What you own
 
 - `server.ts`: the API. Its routes are yours to change.
@@ -38,7 +42,7 @@ Vite forwards every `/api` request from port 5173 to the API on port 3001, so th
 
 The `articles` and `categories` tables in `../db/schema.sql`, and their TypeScript types in `../db/types.ts`. Daniel's ingest job writes the rows and your API only reads them.
 
-- `articles.good_score` is the classifier's probability (0 to 1) that the article is good news. Your API decides the cut-off. `/api/articles` uses `min_score`, which defaults to 0.5.
+- `articles.good_score` is the classifier's probability (0 to 1) that the article is good news. Your API decides the cut-off. `/api/articles` uses `min_score`, which defaults to 0.8.
 - `articles.category` and `articles.good_score` are NULL until Daniel's classifier has processed the article. The API's `good_score >= min_score` check already leaves those rows out, so the frontend only sees classified articles.
 - `articles.category` is one of the 10 `categories.id` values once classified. Show `categories.label` to readers.
 - `summary` is plain text with no HTML.
