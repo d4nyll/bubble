@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bubble ingest admin</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --series-1: #2a78d6;
+    --deemph: #c3c2b7;
+  }
+  @media (prefers-color-scheme: dark) {
+    .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface-1: #1a1a19;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --series-1: #3987e5;
+      --deemph: #4a4a46;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .viz-root {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page); color: var(--text-primary);
+    min-height: 100vh; padding: 24px; font-size: 14px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 2px; }
+  .sub { color: var(--text-secondary); margin: 0 0 16px; }
+  .filters { display: flex; gap: 16px; align-items: center; margin-bottom: 16px; color: var(--text-secondary); }
+  .filters input { width: 72px; font: inherit; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .wide { grid-column: 1 / -1; }
+  .kpis { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 16px; }
+  .kpi .label { color: var(--text-secondary); }
+  .kpi .value { font-size: 32px; font-weight: 600; margin-top: 4px; }
+  .caption { color: var(--text-secondary); margin: 0 0 12px; }
+  #root.loading { opacity: 0.6; }
+
+  /* Column chart: plot area, then an x-axis band in normal flow so the card grows with it. */
+  .cols { position: relative; height: 160px; display: flex; align-items: flex-end; gap: 2px;
+          border-bottom: 1px solid var(--axis); padding-top: 18px; }
+  .cols .gridline { position: absolute; left: 0; right: 0; border-top: 1px solid var(--grid); }
+  .cols .gridlabel { position: absolute; right: 0; transform: translateY(-100%); color: var(--text-muted);
+                     font-size: 11px; font-variant-numeric: tabular-nums; }
+  .slot { flex: 1; height: 100%; display: flex; align-items: flex-end; justify-content: center; outline: none; }
+  .slot:hover .bar, .slot:focus-visible .bar { filter: brightness(1.15); }
+  .slot:focus-visible { box-shadow: inset 0 0 0 2px var(--series-1); }
+  .bar { width: 100%; max-width: 24px; border-radius: 4px 4px 0 0; background: var(--series-1); }
+  .bar.deemph { background: var(--deemph); }
+  .xaxis { display: flex; gap: 2px; margin-top: 4px; color: var(--text-muted); font-size: 11px;
+           font-variant-numeric: tabular-nums; }
+  .xaxis span { flex: 1; text-align: center; white-space: nowrap; overflow: visible; }
+
+  /* Horizontal bar chart */
+  .hbars { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; align-items: center; }
+  .hbars .name { color: var(--text-secondary); }
+  .hrow { display: flex; align-items: center; gap: 6px; height: 22px; outline: none; }
+  .hrow:focus-visible { box-shadow: 0 0 0 2px var(--series-1); }
+  .hbar { height: 16px; border-radius: 0 4px 4px 0; background: var(--series-1); }
+  .hrow:hover .hbar { filter: brightness(1.15); }
+  .hval { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+  .legend { display: flex; gap: 16px; color: var(--text-secondary); margin-bottom: 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+  details { margin-top: 12px; color: var(--text-secondary); }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  th { color: var(--text-secondary); font-weight: 500; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td a { color: var(--text-primary); }
+  .queued { color: var(--text-muted); }
+  td.time { white-space: nowrap; }
+
+  #tooltip { position: fixed; pointer-events: none; background: var(--surface-1); color: var(--text-primary);
+             border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.15);
+             display: none; font-size: 13px; z-index: 10; }
+  #tooltip strong { display: block; font-size: 15px; }
+  #tooltip span { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <h1>Bubble ingest admin</h1>
+  <p class="sub" id="updated">Loading…</p>
+
+  <div class="filters">
+    <label>Good-news cut-off (good_score ≥)
+      <input id="cutoff" type="number" min="0" max="1" step="0.05" value="0.5">
+    </label>
+  </div>
+
+  <div id="root">
+    <div class="kpis">
+      <div class="card kpi"><div class="label">Articles stored</div><div class="value" id="k-total">–</div></div>
+      <div class="card kpi"><div class="label">Classified</div><div class="value" id="k-classified">–</div></div>
+      <div class="card kpi"><div class="label">Waiting for classifier</div><div class="value" id="k-queued">–</div></div>
+      <div class="card kpi"><div class="label">Good news (shown on site)</div><div class="value" id="k-good">–</div></div>
+    </div>
+
+    <div class="grid">
+      <figure class="card" style="margin:0">
+        <h2>Articles fetched per hour</h2>
+        <p class="caption">Last 24 hours, by the time ingest stored them</p>
+        <div id="c-hours"></div>
+      </figure>
+
+      <figure class="card" style="margin:0">
+        <h2>Classifier score distribution</h2>
+        <p class="caption">Classified articles by good_score, in bins of 0.1</p>
+        <div class="legend"><span><i style="background:var(--series-1)"></i>At or above the cut-off</span><span><i style="background:var(--deemph)"></i>Below the cut-off</span></div>
+        <div id="c-scores"></div>
+      </figure>
+
+      <figure class="card" style="margin:0">
+        <h2>Classified articles per category</h2>
+        <p class="caption">All classified articles, whatever their score</p>
+        <div id="c-categories"></div>
+      </figure>
+
+      <section class="card">
+        <h2>Sources</h2>
+        <p class="caption">One row per outlet</p>
+        <div id="t-sources"></div>
+      </section>
+
+      <section class="card wide">
+        <h2>Latest 50 articles</h2>
+        <p class="caption">Newest first. "Queued" means the classifier hasn't processed it yet.</p>
+        <div id="t-recent"></div>
+      </section>
+    </div>
+  </div>
+</div>
+<div id="tooltip" role="status"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...children) => {
+  const node = Object.assign(document.createElement(tag), props);
+  node.append(...children);
+  return node;
+};
+const fmt = (n) => n == null ? '–' : n >= 10000 ? (n / 1000).toFixed(1) + 'K' : n.toLocaleString();
+const localTime = (iso) => iso ? new Date(iso).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '–';
+
+// One shared tooltip. Text goes in with textContent, because titles come from the feeds.
+const tip = $('tooltip');
+function showTip(event, value, label) {
+  tip.replaceChildren(el('strong', { textContent: value }), el('span', { textContent: label }));
+  tip.style.display = 'block';
+  const r = event.currentTarget.getBoundingClientRect();
+  const x = event.clientX ?? r.left + r.width / 2;
+  const y = event.clientY ?? r.top;
+  tip.style.left = Math.min(x + 12, innerWidth - tip.offsetWidth - 8) + 'px';
+  tip.style.top = Math.max(y - tip.offsetHeight - 8, 8) + 'px';
+}
+const hideTip = () => { tip.style.display = 'none'; };
+function hoverable(node, value, label) {
+  node.tabIndex = 0;
+  node.setAttribute('aria-label', `${label}: ${value}`);
+  node.addEventListener('pointermove', (e) => showTip(e, value, label));
+  node.addEventListener('focus', (e) => showTip(e, value, label));
+  node.addEventListener('pointerleave', hideTip);
+  node.addEventListener('blur', hideTip);
+}
+
+function table(headers, rows) {
+  return el('table', {},
+    el('thead', {}, el('tr', {}, ...headers.map(([text, cls]) => el('th', { textContent: text, className: cls ?? '' })))),
+    el('tbody', {}, ...rows.map((cells) => el('tr', {}, ...cells.map((c) =>
+      c instanceof Node ? el('td', {}, c) : el('td', { textContent: c[0], className: c[1] ?? '' }))))));
+}
+const tableView = (headers, rows) => el('details', {}, el('summary', { textContent: 'Table view' }), table(headers, rows));
+
+// rows: [{ label, tick, value, deemph }]
+function columns(rows, unit) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  const plot = el('div', { className: 'cols' },
+    el('div', { className: 'gridline', style: `top:18px` }),
+    el('div', { className: 'gridlabel', style: `top:18px`, textContent: fmt(max) }));
+  const axis = el('div', { className: 'xaxis' });
+  for (const r of rows) {
+    const slot = el('div', { className: 'slot' },
+      el('div', { className: 'bar' + (r.deemph ? ' deemph' : ''), style: `height:${(r.value / max) * 100}%` }));
+    hoverable(slot, `${fmt(r.value)} ${unit}`, r.label);
+    plot.append(slot);
+    axis.append(el('span', { textContent: r.tick ?? '' }));
+  }
+  return [plot, axis, tableView([['Bucket'], [unit, 'num']], rows.map((r) => [[r.label], [fmt(r.value), 'num']]))];
+}
+
+function render(data, cutoff) {
+  const t = data.totals;
+  $('k-total').textContent = fmt(t.total);
+  $('k-classified').textContent = fmt(t.classified);
+  $('k-queued').textContent = fmt(t.queued);
+  $('k-good').textContent = fmt(t.good);
+
+  // 24 hourly slots ending with the current hour, in UTC to match the DB.
+  const byHour = new Map(data.perHour.map((r) => [r.hour, r.count]));
+  const now = new Date(); now.setUTCMinutes(0, 0, 0);
+  const hours = Array.from({ length: 24 }, (_, i) => {
+    const d = new Date(now.getTime() - (23 - i) * 3600e3);
+    const key = d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const hh = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return { label: `${d.toLocaleDateString([], { weekday: 'short' })} ${hh}`, tick: i % 4 === 3 ? hh : '', value: byHour.get(key) ?? 0 };
+  });
+  $('c-hours').replaceChildren(...columns(hours, 'articles'));
+
+  const byBin = new Map(data.scores.map((r) => [r.bin, r.count]));
+  const bins = Array.from({ length: 10 }, (_, b) => ({
+    label: `good_score ${(b / 10).toFixed(1)}–${((b + 1) / 10).toFixed(1)}`,
+    tick: (b / 10).toFixed(1),
+    value: byBin.get(b) ?? 0,
+    // A bin is "shown" when its lower edge clears the cut-off.
+    deemph: b / 10 < cutoff - 1e-9,
+  }));
+  $('c-scores').replaceChildren(...columns(bins, 'articles'));
+
+  const maxCat = Math.max(1, ...data.categories.map((c) => c.count));
+  const hbars = el('div', { className: 'hbars' });
+  for (const c of data.categories) {
+    const row = el('div', { className: 'hrow' },
+      el('div', { className: 'hbar', style: `width:${(c.count / maxCat) * 85}%; ${c.count ? '' : 'width:0'}` }),
+      el('span', { className: 'hval', textContent: fmt(c.count) }));
+    hoverable(row, `${fmt(c.count)} classified`, `${c.label}, ${fmt(c.good)} at or above the cut-off`);
+    hbars.append(el('span', { className: 'name', textContent: c.label }), row);
+  }
+  $('c-categories').replaceChildren(hbars, tableView(
+    [['Category'], ['Classified', 'num'], ['Good', 'num']],
+    data.categories.map((c) => [[c.label], [fmt(c.count), 'num'], [fmt(c.good), 'num']])));
+
+  $('t-sources').replaceChildren(table(
+    [['Source'], ['Stored', 'num'], ['Classified', 'num'], ['Avg score', 'num'], ['Last fetched']],
+    data.sources.map((s) => [[s.source], [fmt(s.total), 'num'], [fmt(s.classified), 'num'],
+      [s.avg_score == null ? '–' : s.avg_score.toFixed(2), 'num'], [localTime(s.last_fetched), 'time']])));
+
+  $('t-recent').replaceChildren(table(
+    [['Fetched'], ['Source'], ['Outlet section'], ['Title'], ['Category'], ['Score', 'num']],
+    data.recent.map((a) => [
+      [localTime(a.fetched_at), 'time'], [a.source], [a.source_category ?? '–'],
+      el('a', { href: a.url, target: '_blank', rel: 'noopener', textContent: a.title }),
+      a.category ? [a.category] : ['Queued', 'queued'],
+      a.good_score == null ? ['–', 'num queued'] : [a.good_score.toFixed(2), 'num'],
+    ])));
+}
+
+async function refresh() {
+  const cutoff = Number($('cutoff').value);
+  $('root').classList.add('loading');
+  try {
+    const res = await fetch(`/api/stats?min_score=${cutoff}`);
+    render(await res.json(), cutoff);
+    $('updated').textContent = `Updated ${new Date().toLocaleTimeString()} · refreshes every 5 seconds`;
+  } catch (err) {
+    $('updated').textContent = `Couldn't reach the admin server: ${err.message}`;
+  } finally {
+    $('root').classList.remove('loading');
+  }
+}
+$('cutoff').addEventListener('change', refresh);
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

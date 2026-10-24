@@ -5,7 +5,8 @@
   "scripts": {
     "ingest": "node ingest.ts",
     "typecheck": "tsc -p .",
-    "classify": "node classify.ts"
+    "classify": "node classify.ts",
+    "admin": "node admin.ts"
   },
   "keywords": [],
   "author": "",

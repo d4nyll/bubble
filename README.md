@@ -47,6 +47,7 @@ Ingest and classify run as two separate processes, in two terminals in `ingest/`
 npm install
 npm run ingest     # terminal 1
 npm run classify   # terminal 2
+npm run admin      # optional, terminal 3: dashboard on http://localhost:3002
 ```
 
 Web, using two terminals in `web/`:
