@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as isoCountries from 'i18n-iso-countries';
 import enLocale from 'i18n-iso-countries/langs/en.json';
 import worldMapUrl from 'world-atlas/countries-110m.json?url';
+import { geoCentroid } from 'd3-geo';
 import {
   ComposableMap,
   Geographies,
   Geography,
+  Marker,
 } from 'react-simple-maps';
 import type { Article } from '../../db/types.ts';
 
@@ -22,6 +24,8 @@ type ArticlesResponse = {
 isoCountries.registerLocale(enLocale);
 
 export default function WorldMap({ minScore }: { minScore: number }) {
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [mapSize, setMapSize] = useState({ width: 1200, height: 520 });
   const [countries, setCountries] = useState<MapCountry[]>([]);
   const [countriesLoaded, setCountriesLoaded] = useState(false);
   const [activeCode, setActiveCode] = useState<string | null>(null);
@@ -31,6 +35,21 @@ export default function WorldMap({ minScore }: { minScore: number }) {
   const [storyError, setStoryError] = useState<string | null>(null);
   const availableCodes = new Set(countries.map((country) => country.code));
   const activeCountry = countries.find((country) => country.code === activeCode);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) {
+        setMapSize({ width: Math.round(width), height: Math.round(height) });
+      }
+    });
+
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -92,50 +111,72 @@ export default function WorldMap({ minScore }: { minScore: number }) {
 
   return (
     <section className="world-map-section" aria-label="Good news around the world">
-      <div className="world-map-frame" onMouseLeave={() => setActiveCode(null)}>
+      <div
+        className="world-map-frame"
+        ref={frameRef}
+        onMouseLeave={() => setActiveCode(null)}
+      >
         <ComposableMap
           className="world-map"
+          width={mapSize.width}
+          height={mapSize.height}
           projection="geoEqualEarth"
-          projectionConfig={{ scale: 150 }}
-          aria-label="World map. Hover or focus a highlighted country to preview its latest good news."
+          projectionConfig={{
+            scale: Math.min(mapSize.width / 6, mapSize.height / 2.7),
+          }}
+          aria-label="World map. Hover or focus a story dot to preview its latest good news."
         >
           <Geographies geography={worldMapUrl}>
-            {({ geographies }) => geographies.map((geography) => {
-              const code = geography.id === undefined
-                ? undefined
-                : isoCountries.numericToAlpha2(String(geography.id).padStart(3, '0'));
-              const available = code !== undefined && availableCodes.has(code);
-              const name = code ? isoCountries.getName(code, 'en') ?? code : 'Country';
+            {({ geographies }) => (
+              <>
+                {geographies.map((geography) => (
+                  <Geography
+                    key={geography.rsmKey}
+                    geography={geography}
+                    className="map-country"
+                  />
+                ))}
+                {geographies.map((geography) => {
+                  const code = geography.id === undefined
+                    ? undefined
+                    : isoCountries.numericToAlpha2(String(geography.id).padStart(3, '0'));
+                  const available = code !== undefined && availableCodes.has(code);
+                  const name = code ? isoCountries.getName(code, 'en') ?? code : 'Country';
 
-              return (
-                <Geography
-                  key={geography.rsmKey}
-                  geography={geography}
-                  className={available ? 'map-country map-country--available' : 'map-country'}
-                  aria-label={`${name}${available ? ', has good-news stories' : ''}`}
-                  role={available ? 'button' : undefined}
-                  tabIndex={available ? 0 : -1}
-                  onMouseEnter={() => available && code && setActiveCode(code)}
-                  onFocus={() => available && code && setActiveCode(code)}
-                  onClick={() => available && code && setActiveCode(code)}
-                  onKeyDown={(event) => {
-                    if (available && code && (event.key === 'Enter' || event.key === ' ')) {
-                      event.preventDefault();
-                      setActiveCode(code);
-                    }
-                  }}
-                />
-              );
-            })}
+                  return available && code ? (
+                    <Marker key={`story-${geography.rsmKey}`} coordinates={geoCentroid(geography)}>
+                      <circle
+                        className="map-story-dot"
+                        r={5}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Show latest good news from ${name}`}
+                        onMouseEnter={() => setActiveCode(code)}
+                        onFocus={() => setActiveCode(code)}
+                        onClick={() => setActiveCode(code)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setActiveCode(code);
+                          }
+                        }}
+                      />
+                    </Marker>
+                  ) : null;
+                })}
+              </>
+            )}
           </Geographies>
         </ComposableMap>
-        <div className="map-hint" role={countriesError ? 'alert' : undefined}>
-          {countriesError
-            ? countriesError
-            : countriesLoaded && countries.length === 0
-              ? 'Country stories will appear here as country-tagged articles arrive'
-              : 'Hover over a highlighted country to preview a story'}
-        </div>
+        {!activeCountry && (
+          <div className="map-hint" role={countriesError ? 'alert' : undefined}>
+            {countriesError
+              ? countriesError
+              : countriesLoaded && countries.length === 0
+                ? 'Country story dots will appear as country-tagged articles arrive'
+                : 'Hover over a dot to preview the latest story'}
+          </div>
+        )}
         {activeCountry && (
           <aside className="map-story-card" aria-live="polite">
             <div className="map-story-meta">
@@ -151,7 +192,16 @@ export default function WorldMap({ minScore }: { minScore: number }) {
             {!loading && !storyError && story && (
               <>
                 <strong>{story.title}</strong>
-                <a href={story.url} target="_blank" rel="noreferrer">Read story <span aria-hidden="true">→</span></a>
+                <div className="map-story-actions">
+                  <a className="map-story-read" href={story.url} target="_blank" rel="noreferrer">
+                    Read article <span aria-hidden="true">→</span>
+                  </a>
+                  {story.category && (
+                    <a className="map-story-category" href={`/${story.category}`}>
+                      {story.category.replaceAll('_', ' ')}
+                    </a>
+                  )}
+                </div>
               </>
             )}
             {!loading && !storyError && !story && <p>No matching stories right now.</p>}

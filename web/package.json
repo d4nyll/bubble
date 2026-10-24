@@ -15,6 +15,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "d3-geo": "^3.1.1",
     "i18n-iso-countries": "^7.14.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
