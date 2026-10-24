@@ -20,6 +20,40 @@ createServer((req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/article-filters') {
+    const category = url.searchParams.get('category');
+    if (!category) {
+      res.writeHead(400, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ error: 'category is required' }));
+      return;
+    }
+
+    const goodKinds = db.prepare('SELECT * FROM good_kinds ORDER BY position').all();
+    const countries = db.prepare(`
+      SELECT DISTINCT source_country
+      FROM articles
+      WHERE category = :category
+        AND good_score >= :min_score
+        AND source_country IS NOT NULL
+        AND duplicate_of IS NULL
+        AND coalesce(credibility_score, 1) >= :min_credibility
+      ORDER BY source_country`).all({
+      category,
+      min_score: DEFAULT_MIN_SCORE,
+      min_credibility: MIN_CREDIBILITY,
+    }) as { source_country: string }[];
+    const displayNames = new Intl.DisplayNames(['en'], { type: 'region' });
+    const body = {
+      goodKinds,
+      countries: countries.map(({ source_country: code }) => ({
+        code,
+        name: displayNames.of(code) ?? code,
+      })),
+    };
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(body));
+    return;
+  }
+
   if (url.pathname === '/api/articles') {
     const minScore = Number(url.searchParams.get('min_score') ?? DEFAULT_MIN_SCORE);
     const limit = Number(url.searchParams.get('limit') ?? DEFAULT_LIMIT);
@@ -39,11 +73,15 @@ createServer((req, res) => {
         (SELECT count(*) FROM articles d WHERE d.duplicate_of = articles.id) AS other_outlets
       FROM articles
       WHERE good_score >= :min_score AND (:category IS NULL OR category = :category)
+        AND (:good_kind IS NULL OR good_kind = :good_kind)
+        AND (:country IS NULL OR source_country = :country)
         AND duplicate_of IS NULL
         AND coalesce(credibility_score, 1) >= :min_credibility
       ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC
       LIMIT :limit OFFSET :offset`).all({
       category: url.searchParams.get('category'),
+      good_kind: url.searchParams.get('good_kind'),
+      country: url.searchParams.get('country'),
       min_score: minScore,
       min_credibility: MIN_CREDIBILITY,
       limit: limit + 1,

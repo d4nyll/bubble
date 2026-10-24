@@ -28,7 +28,7 @@ Vite forwards every `/api` request from port 5173 to the API on port 3001, so th
 
 The homepage at `/` shows the latest 10 articles. Each category has a URL based on its ID, such as `/technology` or `/world`. Category pages show 20 articles at a time and provide a load-more button.
 
-`GET /api/articles` supports `min_score`, `category`, `limit`, and `page` query parameters. It defaults to a score of 0.8 and sorts articles newest first.
+`GET /api/articles` supports `min_score`, `category`, `good_kind`, `country`, `limit`, and `page` query parameters. It defaults to a score of 0.8 and sorts articles newest first. Category pages get available kind and country options from `GET /api/article-filters?category=technology`.
 
 ## What you own
 

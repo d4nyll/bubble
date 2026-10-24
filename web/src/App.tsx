@@ -1,14 +1,31 @@
 import { useEffect, useState } from 'react';
-import type { Article, Category } from '../../db/types.ts';
+import type { Article, Category, GoodKind } from '../../db/types.ts';
+
+type ArticleFilters = {
+  goodKind: string;
+  country: string;
+  minScore: number;
+};
+
+type FilterOptions = {
+  goodKinds: GoodKind[];
+  countries: { code: string; name: string }[];
+};
+
+const DEFAULT_FILTERS: ArticleFilters = { goodKind: '', country: '', minScore: 0.8 };
 
 export default function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [path] = useState(() => window.location.pathname);
   const [articles, setArticles] = useState<Article[]>([]);
+  const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
+  const [draftFilters, setDraftFilters] = useState(DEFAULT_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [articlesError, setArticlesError] = useState<string | null>(null);
+  const [filtersError, setFiltersError] = useState<string | null>(null);
   const pathSegments = path.split('/').filter(Boolean);
   const categorySlug = pathSegments[0]?.toLowerCase() ?? null;
   const category = categories.find((item) => item.id.toLowerCase() === categorySlug);
@@ -28,16 +45,40 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!category) return;
+
+    const controller = new AbortController();
+    setFiltersError(null);
+    setFilterOptions(null);
+
+    fetch(`/api/article-filters?category=${encodeURIComponent(category.id)}`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Filter options request failed (${response.status})`);
+        return response.json() as Promise<FilterOptions>;
+      })
+      .then(setFilterOptions)
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) {
+          setFiltersError(requestError instanceof Error ? requestError.message : 'Failed to load filter options');
+        }
+      });
+
+    return () => controller.abort();
+  }, [category]);
+
+  useEffect(() => {
     if (isNotFound) return;
 
     const controller = new AbortController();
     const params = new URLSearchParams({
-      min_score: '0.8',
-      limit: category ? '20' : '10',
+      min_score: String(category ? appliedFilters.minScore : DEFAULT_FILTERS.minScore),
+      limit: categorySlug ? '20' : '10',
       page: String(page),
     });
     if (category) params.set('category', category.id);
     else if (categorySlug) params.set('category', categorySlug);
+    if (category && appliedFilters.goodKind) params.set('good_kind', appliedFilters.goodKind);
+    if (category && appliedFilters.country) params.set('country', appliedFilters.country);
 
     setArticlesError(null);
     if (page === 1) {
@@ -64,7 +105,18 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, [category, categorySlug, isNotFound, page]);
+  }, [appliedFilters, category, categorySlug, isNotFound, page]);
+
+  const applyFilters = () => {
+    setPage(1);
+    setAppliedFilters({ ...draftFilters });
+  };
+
+  const resetFilters = () => {
+    setDraftFilters(DEFAULT_FILTERS);
+    setAppliedFilters(DEFAULT_FILTERS);
+    setPage(1);
+  };
 
   return (
     <main style={{ fontFamily: 'system-ui', maxWidth: 720, margin: '2rem auto', padding: '0 1rem' }}>
@@ -83,6 +135,59 @@ export default function App() {
       </nav>
       {categoriesError && <p role="alert">{categoriesError}</p>}
       {isNotFound && <p>Category not found.</p>}
+      {category && (
+        <details style={{ marginBottom: 24 }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Filter stories</summary>
+          {filtersError && <p role="alert">{filtersError}</p>}
+          {!filtersError && !filterOptions && <p>Loading filters…</p>}
+          {filterOptions && (
+            <div style={{ display: 'grid', gap: 16, padding: '16px 0' }}>
+              <label style={{ display: 'grid', gap: 6 }}>
+                Good-news type
+                <select
+                  value={draftFilters.goodKind}
+                  onChange={(event) => setDraftFilters({ ...draftFilters, goodKind: event.target.value })}
+                >
+                  <option value="">All types</option>
+                  {filterOptions.goodKinds.map((kind) => (
+                    <option key={kind.id} value={kind.id}>{kind.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ display: 'grid', gap: 6 }}>
+                Source country
+                <select
+                  value={draftFilters.country}
+                  onChange={(event) => setDraftFilters({ ...draftFilters, country: event.target.value })}
+                >
+                  <option value="">All countries</option>
+                  {filterOptions.countries.map((country) => (
+                    <option key={country.code} value={country.code}>{country.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ display: 'grid', gap: 6 }}>
+                Minimum good-news score: {draftFilters.minScore.toFixed(2)}
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={draftFilters.minScore}
+                  onChange={(event) => setDraftFilters({
+                    ...draftFilters,
+                    minScore: Number(event.target.value),
+                  })}
+                />
+              </label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={applyFilters}>Apply filters</button>
+                <button type="button" onClick={resetFilters}>Reset</button>
+              </div>
+            </div>
+          )}
+        </details>
+      )}
       {articlesError && <p role="alert">{articlesError}</p>}
       {!isNotFound && !articlesError && articles.length === 0 && <p>No good news yet.</p>}
       {!isNotFound && articles.map((a) => (
