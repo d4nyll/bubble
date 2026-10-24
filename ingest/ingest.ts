@@ -3,6 +3,7 @@
 import Parser from 'rss-parser';
 import { connect } from '../db/db.ts';
 import { FEEDS, type Feed } from './feeds.ts';
+import { isEnglish } from './language.ts';
 
 const SUMMARY_MAX = 500;
 const INTERVAL_MS = 10 * 60 * 1000;
@@ -142,11 +143,17 @@ export const fetchFeed = (feed: Feed) => (feed.kind === 'wordpress' ? fetchWordP
 async function ingest(feed: Feed) {
   const rows = await fetchFeed(feed);
   let added = 0;
+  let skipped = 0;
   for (const row of rows) {
+    // Some outlets (Free Malaysia Today, Roya News, TOLOnews) mix in other languages.
+    if (!(await isEnglish(row.title, row.summary))) {
+      skipped++;
+      continue;
+    }
     added += Number(insert.run({ ...row, source: feed.source, source_country: feed.country ?? null }).changes);
     if (feed.country) backfillCountry.run(feed.country, row.url);
   }
-  console.log(`ingest: ${feed.source} ${feed.url}: ${rows.length} items, ${added} new`);
+  console.log(`ingest: ${feed.source} ${feed.url}: ${rows.length} items, ${added} new${skipped ? `, ${skipped} not in English` : ''}`);
 }
 
 export async function runIngest() {

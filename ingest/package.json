@@ -15,6 +15,7 @@
   "dependencies": {
     "@huggingface/tokenizers": "^0.2.0",
     "@receptron/laya": "^0.2.0",
+    "fasttext.wasm.js": "^1.0.0",
     "onnxruntime-node": "^1.30.0",
     "rss-parser": "^3.13.0"
   },
