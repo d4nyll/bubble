@@ -5,10 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "api": "node server.ts",
+    "api": "node --experimental-strip-types --experimental-sqlite server.ts",
     "dev": "vite",
     "typecheck": "tsc -p . && tsc -p tsconfig.server.json",
-    "seed": "node seed.ts"
+    "seed": "node --experimental-strip-types --experimental-sqlite seed.ts"
   },
   "keywords": [],
   "author": "",
