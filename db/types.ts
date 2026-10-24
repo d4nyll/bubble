@@ -19,6 +19,12 @@ export interface GoodKind {
   position: number;
 }
 
+export interface Topic {
+  id: string;
+  label: string;
+  description: string;
+}
+
 export interface Article {
   id: number;
   url: string;
@@ -34,5 +40,5 @@ export interface Article {
   category: CategoryId | null;     // null until classified
   good_score: number | null;       // null until classified
   good_kind: GoodKindId | null;    // null until classified
-  news_score: number | null;       // null until classified
+  credibility_score: number | null; // null until classified
 }

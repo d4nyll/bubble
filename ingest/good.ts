@@ -22,6 +22,7 @@ export const GOOD_QUESTIONS = {
   tribal: yes('Is this a sports match result or an election result?'),
   commercial: yes("Is this mainly about a company's profits, shares or a new product?"),
   crowdfunding: yes('Is this a crowdfunding campaign, GoFundMe or donation drive by members of the public?'),
+  need: yes('Does this show more people struggling, going hungry or in need?'),
 };
 
 type GoodAnswers = Record<keyof typeof GOOD_QUESTIONS, NoulAnswer>;
@@ -29,11 +30,13 @@ type GoodAnswers = Record<keyof typeof GOOD_QUESTIONS, NoulAnswer>;
 export function goodScore(a: GoodAnswers): number {
   // How much progress and inspiration the story carries...
   const base = Math.min(1, 0.15 + 0.5 * a.progress.noul + 0.4 * a.good.noul + 0.3 * a.inspiring.noul);
-  // ...pulled down for winners and losers (tribal), company news, and stories that expose a failing system.
+  // ...pulled down for winners and losers (tribal), company news, and stories that expose a failing
+  // system: people filling a gap with donations, or growing need.
   return base
     * (1 - a.tribal.noul) ** 3
     * (1 - 0.8 * a.commercial.noul)
-    * (1 - 0.8 * a.crowdfunding.noul);
+    * (1 - 0.8 * a.crowdfunding.noul)
+    * (1 - 0.8 * a.need.noul);
 }
 
 // target: the good_score Daniel and Vat want, from 0 (not good for humanity) to 1 (major progress).
@@ -57,4 +60,14 @@ export const EXAMPLES: Example[] = [
   { title: 'Humpback whale numbers in South Atlantic recover to pre-whaling levels', target: 0.6, why: 'Conservation working; good for nature is good for humanity' },
   { title: "Pope Francis' body lies in state as thousands pay respects", target: 0.2, why: 'A death' },
   { title: 'Apple unveils thinner iPhone with longer battery life', target: 0.1, why: 'Incremental product, not progress (the first touchscreen iPhone would be 0.8)' },
+  // Round 2
+  { title: 'Malaria vaccine rollout cuts child deaths by 13% across eight African countries', summary: 'WHO data from the first two years of the R21 vaccine programme show 13% fewer deaths among children under five in areas where it was given.', target: 0.85, why: 'Fewer people dying or suffering; good, not great, progress' },
+  { title: 'Strangers pay off school lunch debt for every pupil in Texas district', summary: 'A viral appeal raised $86,000 in two days to clear the debts of 4,000 children who had been denied hot meals.', target: 0.3, why: 'Feel-good, but one-off philanthropy instead of systemic change' },
+  { title: "Solar overtakes coal as the EU's biggest source of electricity for the first time", summary: "Solar panels generated 22% of the bloc's power in June, more than coal, according to energy think tank Ember.", target: 0.6, why: 'Good progress' },
+  { title: 'Man pulled alive from earthquake rubble after three days as death toll passes 2,000', summary: 'Rescuers in western Afghanistan freed the 34-year-old shopkeeper as aid agencies warned of worsening shortages.', target: 0.2, why: 'One feel-good moment in what is largely a tragedy' },
+  { title: 'Billionaire pledges $1bn of his fortune to climate research', summary: 'The tech founder said the money would fund carbon removal start-ups and university research over the next decade.', target: 0.6, why: 'Good, but a pledge may not be realised' },
+  { title: 'Food bank breaks donation record as demand soars to all-time high', summary: 'The Trussell Trust handed out a record 3.1 million parcels this year, with volunteers collecting more food than ever.', target: 0.2, why: 'Generosity is good, but record demand shows the system failing' },
+  { title: 'Qatar reveals 9 visa options available to foreigners arriving at the airport', target: 0, why: 'Irrelevant to humanity' },
+  { title: 'French police arrest 135 people, seize weapons: minister', target: 0, why: 'Violence' },
+  { title: 'Tourism meets conservation as Sheraton Kampala joins CTPH to protect endangered mountain gorillas', target: 0.7, why: 'Conservation successes are typically 0.7' },
 ];

@@ -3,6 +3,9 @@ import { createServer } from 'node:http';
 import { connect } from '../db/db.ts';
 
 const DEFAULT_MIN_SCORE = 0.8;
+// Below 0.4 are mostly horoscopes, quizzes, podcasts, adverts and miracle claims. In a sample of
+// 300 real articles, none scored below 0.4. Articles not yet scored for credibility are shown.
+const MIN_CREDIBILITY = 0.4;
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
 
@@ -31,18 +34,25 @@ createServer((req, res) => {
     }
 
     const rows = db.prepare(`
-      SELECT * FROM articles
+      SELECT *,
+        -- How many other outlets covered the same story. Their copies point here and aren't listed.
+        (SELECT count(*) FROM articles d WHERE d.duplicate_of = articles.id) AS other_outlets
+      FROM articles
       WHERE good_score >= :min_score AND (:category IS NULL OR category = :category)
+        AND duplicate_of IS NULL
+        AND coalesce(credibility_score, 1) >= :min_credibility
       ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC
       LIMIT :limit OFFSET :offset`).all({
       category: url.searchParams.get('category'),
       min_score: minScore,
+      min_credibility: MIN_CREDIBILITY,
       limit: limit + 1,
       offset: (page - 1) * limit,
     });
 
     const body = {
-      articles: rows.slice(0, limit),
+      // embedding is 1.5 KB of numbers per article that the frontend has no use for.
+      articles: rows.slice(0, limit).map(({ embedding, ...article }) => article),
       page,
       limit,
       hasMore: rows.length > limit,

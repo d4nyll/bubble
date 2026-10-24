@@ -66,10 +66,83 @@ CREATE TABLE IF NOT EXISTS articles (
     category        TEXT REFERENCES categories(id),
     good_score      REAL CHECK (good_score BETWEEN 0 AND 1),  -- classifier's P(good news)
     good_kind       TEXT REFERENCES good_kinds(id),           -- which kind of good news it is
-    news_score      REAL CHECK (news_score BETWEEN 0 AND 1)   -- P(it's a news report, not a podcast,
-                                                              -- horoscope, live blog or round-up)
+    credibility_score REAL CHECK (credibility_score BETWEEN 0 AND 1),  -- P(it's a credible, factual news
+                                                              -- report, not clickbait, rumour, opinion, a podcast...)
+    -- all-MiniLM-L6-v2 vector of title and summary: 384 float32s. NULL until ingest/embedder.ts has
+    -- processed the article, which also sets duplicate_of and the article's topics.
+    embedding       BLOB
 );
 
 CREATE INDEX IF NOT EXISTS articles_feed ON articles (category, published_at DESC);
 CREATE INDEX IF NOT EXISTS articles_country ON articles (source_country);
 CREATE INDEX IF NOT EXISTS articles_duplicate ON articles (duplicate_of);
+
+-- Tags that cut across categories: an AI story filed under Science can be tagged 'ai' and
+-- 'biochemistry'. An article has 0 to 3. `description` is what ingest/embedder.ts compares an article
+-- with, `label` is what the frontend shows. To add a topic, add a row here.
+CREATE TABLE IF NOT EXISTS topics (
+    id          TEXT PRIMARY KEY,
+    label       TEXT NOT NULL,
+    description TEXT NOT NULL
+);
+
+INSERT OR REPLACE INTO topics (id, label, description) VALUES
+    ('ai', 'AI', 'artificial intelligence, machine learning, chatbots and AI models'),
+    ('space', 'Space', 'space exploration, astronomy, planets, rockets and satellites'),
+    ('climate', 'Climate', 'climate change, global warming, emissions and net zero'),
+    ('renewable-energy', 'Renewable energy', 'solar power, wind power, batteries and clean energy'),
+    ('conservation', 'Conservation', 'protecting endangered species and habitats, wildlife conservation'),
+    ('wildlife', 'Wildlife', 'wild animals, birds, insects and marine life'),
+    ('oceans', 'Oceans', 'oceans, seas, coral reefs, whales and fisheries'),
+    ('forests', 'Trees & forests', 'trees, forests, deforestation and reforestation'),
+    ('pollution', 'Pollution', 'air pollution, plastic waste, water contamination and toxic chemicals'),
+    ('farming', 'Farming & food', 'agriculture, farmers, crops, food production and food security'),
+    ('water', 'Water', 'drinking water, sanitation, drought and floods'),
+    ('weather', 'Weather', 'storms, typhoons, hurricanes, heatwaves and extreme weather'),
+    ('disasters', 'Disasters', 'earthquakes, building collapses, accidents and emergency rescues'),
+    ('medicine', 'Medicine', 'new drugs, treatments, clinical trials and doctors'),
+    ('vaccines', 'Vaccines', 'vaccines, vaccination and immunisation programmes'),
+    ('cancer', 'Cancer', 'cancer, tumours, chemotherapy and cancer research'),
+    ('infectious-disease', 'Infectious disease', 'outbreaks, epidemics, Ebola, malaria, HIV and viruses'),
+    ('mental-health', 'Mental health', 'mental health, depression, anxiety and wellbeing'),
+    ('public-health', 'Public health', 'healthcare systems, hospitals, health policy and life expectancy'),
+    ('genetics', 'Genetics', 'genes, DNA, genome editing and heredity'),
+    ('neuroscience', 'Neuroscience', 'the brain, neurons, dementia and Alzheimer''s'),
+    ('biochemistry', 'Biochemistry', 'proteins, enzymes, molecules and cell biology'),
+    ('physics', 'Physics', 'physics, particles, quantum mechanics and materials'),
+    ('archaeology', 'Archaeology', 'archaeology, ancient history, fossils and excavations'),
+    ('computing', 'Computing', 'software, computers, the internet, smartphones and cybersecurity'),
+    ('transport', 'Transport', 'trains, cars, electric vehicles, aviation and public transport'),
+    ('cities', 'Cities', 'cities, urban planning, parks and infrastructure'),
+    ('housing', 'Housing', 'housing, rent, homelessness and affordable homes'),
+    ('poverty', 'Poverty', 'poverty, inequality, food banks and cost of living'),
+    ('jobs', 'Jobs & work', 'jobs, employment, wages, workers and unions'),
+    ('economy', 'Economy', 'economic growth, inflation, markets, trade and investment'),
+    ('education', 'Education', 'schools, teachers, students, universities and learning'),
+    ('children', 'Children', 'children, young people, babies and families'),
+    ('older-people', 'Older people', 'elderly people, pensioners, retirement and ageing'),
+    ('women', 'Women', 'women''s rights, gender equality and maternal health'),
+    ('human-rights', 'Human rights', 'human rights, civil liberties, freedom of speech and justice'),
+    ('refugees', 'Refugees & migration', 'refugees, migrants, asylum and immigration'),
+    ('disability', 'Disability', 'disabled people, accessibility and disability rights'),
+    ('peace', 'Peace & conflict', 'war, ceasefires, peace talks, armed conflict and the military'),
+    ('elections', 'Elections', 'elections, voting, candidates and political parties'),
+    ('law', 'Law & courts', 'courts, judges, trials, laws and legislation'),
+    ('crime', 'Crime', 'crime, police, arrests, violence and prisons'),
+    ('charity', 'Charity & volunteering', 'charities, donations, fundraising and volunteers'),
+    ('community', 'Community', 'local communities, neighbours helping each other and community projects'),
+    ('sport', 'Sport', 'football, athletes, matches, tournaments and the Olympics'),
+    ('arts', 'Arts', 'art, museums, theatre, film and music'),
+    ('books', 'Books', 'books, authors, literature and libraries'),
+    ('religion', 'Religion', 'religion, faith, churches, mosques and temples'),
+    ('travel', 'Travel', 'tourism, travel, visas and holidays'),
+    ('business', 'Business', 'companies, start-ups, profits and products');
+
+CREATE TABLE IF NOT EXISTS article_topics (
+    article_id  INTEGER NOT NULL REFERENCES articles(id),
+    topic_id    TEXT NOT NULL REFERENCES topics(id),
+    score       REAL NOT NULL,  -- similarity between the article and the topic, higher is closer
+    PRIMARY KEY (article_id, topic_id)
+);
+
+CREATE INDEX IF NOT EXISTS article_topics_topic ON article_topics (topic_id);

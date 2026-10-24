@@ -34,10 +34,12 @@ A news aggregator that shows only good news.
 - `categories`: our 10 standard categories, condensed from the 17 [IPTC Media Topics](https://cv.iptc.org/newscodes/mediatopic/). The classifier picks one per article from `description`, and the frontend shows `label`.
 - `good_kinds`: the 6 kinds of good news (breakthrough, nature, systems, peace, inspiring, kindness), for filtering. Same `description`/`label` split as `categories`. `kindness` is the mildest kind.
 - `articles.good_score`: the classifier's probability (0 to 1) that the article is good news. The API decides the cut-off for "good" at request time.
-- `articles.news_score`: the classifier's probability (0 to 1) that the article is a news report, rather than a podcast, horoscope, live blog or round-up.
-- `articles.category`, `good_score`, `good_kind` and `news_score` are NULL until the classifier has processed the article.
+- `articles.credibility_score`: how likely (0 to 1) the article is a credible news report rather than a horoscope, quiz, podcast, advert, opinion column or clickbait. `ingest/credibility.ts` works it out. The API hides articles below 0.4: in a sample of 300 real articles none scored below 0.4, while made-up horoscopes, quizzes, podcasts, adverts and miracle cures scored 0.04 to 0.19. Clickbait headlines, satire and live blogs still scored above 0.6, so the score doesn't catch those.
+- `articles.category`, `good_score`, `good_kind` and `credibility_score` are NULL until the classifier has processed the article.
+- `topics` and `article_topics`: tags that cut across categories, such as `ai` and `biochemistry` on a Science story. An article has 0 to 3, each with the `score` it matched with. `ingest/embedder.ts` picks them by comparing the article with each topic's `description`. To add a topic, add a row to `db/schema.sql`.
+- `articles.embedding`: the article's all-MiniLM-L6-v2 vector, which `embedder.ts` uses to find duplicates. The API leaves it out of responses.
 - `articles.source_country`: the ISO 3166-1 alpha-2 code (such as `NG`) of the outlet's home country, from `ingest/feeds.ts`. NULL for international outlets, journals and Reddit. `new Intl.DisplayNames(['en'], { type: 'region' }).of('NG')` turns a code into "Nigeria".
-- `articles.duplicate_of`: when several outlets cover the same story, every article after the first points to the first one's `id`. Show the articles where it's NULL, and count the ones pointing at each to show "covered by N outlets".
+- `articles.duplicate_of`: when several outlets cover the same story, every article after the first points to the first one's `id`. `embedder.ts` sets it when two articles from different outlets, published within 3 days of each other, have vectors with a cosine similarity of 0.8 or more. `/api/articles` lists only the first and returns `other_outlets`, the number of copies.
 
 ### Tuning what counts as good
 
@@ -70,7 +72,7 @@ Working on the API or frontend only? Follow [`web/README.md`](web/README.md) ins
 
 Requires Node.js 24 (it runs `.ts` files directly and has `node:sqlite` built in).
 
-`npm run ingest-server` runs ingest and classify together in one process, and stopping it stops both. Ingest stores new articles every 10 minutes with `category` and `good_score` left NULL. Classify polls for those rows and fills both in. The first run downloads ~1.7 GB of Laya weights. The admin dashboard is a separate server.
+`npm run ingest-server` runs ingest, classify and embed together in one process, and stopping it stops all three. Embed downloads the 23 MB all-MiniLM-L6-v2 model on first run. Ingest stores new articles every 10 minutes with `category` and `good_score` left NULL. Classify polls for those rows and fills both in. The first run downloads ~1.7 GB of Laya weights. The admin dashboard is a separate server.
 
 ```sh
 npm install

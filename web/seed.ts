@@ -13,11 +13,13 @@ const db = connect();
 const categories = db.prepare('SELECT id FROM categories').all() as unknown as Pick<Category, 'id'>[];
 const insert = db.prepare(`
   INSERT INTO articles (url, source, source_category, title, summary, image_url, published_at, category, good_score,
-                        source_country, good_kind, news_score, duplicate_of)
+                        source_country, good_kind, credibility_score, duplicate_of)
   VALUES (:url, :source, :source_category, :title, :summary, :image_url, :published_at, :category, :good_score,
-          :source_country, :good_kind, :news_score, :duplicate_of)`);
+          :source_country, :good_kind, :credibility_score, :duplicate_of)`);
 const kinds = db.prepare('SELECT id FROM good_kinds').all() as { id: string }[];
 const COUNTRIES = ['NG', 'GH', 'KE', 'ZA', 'IN', 'HK', 'JP', 'BR', 'MX', 'DE', 'FR', 'UA', 'AU', 'NZ', 'CA'];
+const topics = db.prepare('SELECT id FROM topics').all() as { id: string }[];
+const tag = db.prepare('INSERT OR IGNORE INTO article_topics (article_id, topic_id, score) VALUES (?, ?, ?)');
 const lastId = () => (db.prepare('SELECT max(id) AS id FROM articles').get() as { id: number | null }).id;
 
 // Drop milliseconds to match the schema's 'YYYY-MM-DDTHH:MM:SSZ' format.
@@ -43,10 +45,13 @@ for (let i = 0; i < count; i++) {
     // Half the articles get a country, as if they came from a regional outlet.
     source_country: faker.helpers.maybe(() => faker.helpers.arrayElement(COUNTRIES), { probability: 0.5 }) ?? null,
     good_kind: faker.helpers.arrayElement(kinds).id,
-    news_score: faker.number.float({ min: 0, max: 1, fractionDigits: 3 }),
+    credibility_score: faker.number.float({ min: 0, max: 1, fractionDigits: 3 }),
     // About 1 in 10 repeats the article before it, as if another outlet covered the same story.
     duplicate_of: i > 0 && faker.datatype.boolean(0.1) ? lastId() : null,
   });
+  for (const topic of faker.helpers.arrayElements(topics, { min: 0, max: 3 })) {
+    tag.run(lastId(), topic.id, faker.number.float({ min: 0.25, max: 0.6, fractionDigits: 3 }));
+  }
 }
 db.exec('COMMIT');
 console.log(`Inserted ${count} fake articles into db/bubble.db`);

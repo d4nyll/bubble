@@ -4,6 +4,7 @@
 // questions. Set good_kind to NULL to have articles scored again. Started by server.ts.
 import { Laya } from '@receptron/laya';
 import { connect, type Article, type Category, type GoodKind } from '../db/db.ts';
+import { CREDIBILITY_QUESTIONS, credibilityScore } from './credibility.ts';
 import { GOOD_QUESTIONS, goodScore } from './good.ts';
 
 const POLL_MS = 5000;
@@ -17,7 +18,8 @@ const next = db.prepare(`
   WHERE good_kind IS NULL AND id NOT IN (SELECT value FROM json_each(:failed))
   ORDER BY good_score IS NOT NULL, id DESC LIMIT 20`);
 const save = db.prepare(`
-  UPDATE articles SET category = :category, good_score = :good_score, good_kind = :good_kind, news_score = :news_score
+  UPDATE articles SET category = :category, good_score = :good_score, good_kind = :good_kind,
+    credibility_score = :credibility_score
   WHERE id = :id`);
 
 // ponytail: an article that fails is skipped until the server restarts; add an attempts column if failures pile up
@@ -47,11 +49,7 @@ export async function runClassifier() {
               instructions: 'If this is good news, what kind of good news is it?',
               criteria: Object.fromEntries(goodKinds.map((k) => [k.id, k.description])),
             },
-            news: {
-              type: 'noul',
-              instructions: 'Is this a news report about something that happened, rather than a podcast, '
-                + 'horoscope, quiz, live blog, opinion column or weekly round-up?',
-            },
+            ...CREDIBILITY_QUESTIONS,
           },
         );
         const good_score = goodScore(answers);
@@ -60,7 +58,7 @@ export async function runClassifier() {
           category: answers.category.choice,
           good_score,
           good_kind: answers.kind.choice,
-          news_score: answers.news.noul,
+          credibility_score: credibilityScore(answers),
         });
         console.log(`classify: ${good_score.toFixed(2)} ${answers.category.choice.padEnd(11)} ${answers.kind.choice.padEnd(12)} ${article.title}`);
       } catch (err) {
