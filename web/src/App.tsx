@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Article, Category, GoodKind } from '../../db/types.ts';
+import WorldMap from './WorldMap.tsx';
+import './App.css';
 
 type ArticleFilters = {
   goodKind: string;
@@ -14,6 +16,43 @@ type FilterOptions = {
 
 const DEFAULT_FILTERS: ArticleFilters = { goodKind: '', country: '', minScore: 0.8 };
 
+function ArticleCard({ article }: { article: Article }) {
+  const published = article.published_at ?? article.fetched_at;
+  const date = new Date(published);
+  const score = article.good_score === null ? null : Math.round(article.good_score * 100);
+
+  return (
+    <article className="article-card">
+      <div className="article-image">
+        {article.image_url
+          ? <img src={article.image_url} alt="" loading="lazy" />
+          : <span>Bubble news</span>}
+      </div>
+      <div className="article-content">
+        <a className="article-title" href={article.url} target="_blank" rel="noreferrer">
+          {article.title}
+        </a>
+        {article.summary && <p className="article-summary">{article.summary}</p>}
+        <div className="article-meta">
+          {score !== null && <span className="score-badge">{score}% good</span>}
+          <span>{article.source}</span>
+          <span aria-hidden="true">·</span>
+          <span>{article.category}</span>
+          <span aria-hidden="true">·</span>
+          <time dateTime={published}>
+            {Number.isNaN(date.valueOf()) ? published : date.toLocaleString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </time>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export default function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [path] = useState(() => window.location.pathname);
@@ -23,6 +62,7 @@ export default function App() {
   const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [articlesError, setArticlesError] = useState<string | null>(null);
   const [filtersError, setFiltersError] = useState<string | null>(null);
@@ -67,7 +107,10 @@ export default function App() {
   }, [category]);
 
   useEffect(() => {
-    if (isNotFound) return;
+    if (isNotFound) {
+      setIsLoading(false);
+      return;
+    }
 
     const controller = new AbortController();
     const params = new URLSearchParams({
@@ -81,6 +124,7 @@ export default function App() {
     if (category && appliedFilters.country) params.set('country', appliedFilters.country);
 
     setArticlesError(null);
+    setIsLoading(true);
     if (page === 1) {
       setArticles([]);
       setHasMore(false);
@@ -102,6 +146,9 @@ export default function App() {
         if (!controller.signal.aborted) {
           setArticlesError(requestError instanceof Error ? requestError.message : 'Failed to load articles');
         }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
       });
 
     return () => controller.abort();
@@ -119,88 +166,129 @@ export default function App() {
   };
 
   return (
-    <main style={{ fontFamily: 'system-ui', maxWidth: 720, margin: '2rem auto', padding: '0 1rem' }}>
-      <h1>{category?.label ?? 'Bubble'}</h1>
-      <nav style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
+    <main className="app-shell">
+      <header className="site-header">
+        <a className="brand" href="/" aria-label="Bubble home">
+          <span className="brand-mark" aria-hidden="true" />
+          <span>Bubble</span>
+        </a>
+        <span className="model-badge">Sorted by good news</span>
+      </header>
+
+      <nav className="category-nav" aria-label="News categories">
         <a href="/" aria-current={categorySlug === null ? 'page' : undefined}>Home</a>
-        {categories.map((c) => (
+        {categories.map((item) => (
           <a
-            key={c.id}
-            href={`/${c.id}`}
-            aria-current={category?.id === c.id ? 'page' : undefined}
+            key={item.id}
+            href={`/${item.id}`}
+            aria-current={category?.id === item.id ? 'page' : undefined}
           >
-            {c.label}
+            {item.label}
           </a>
         ))}
       </nav>
+
       {categoriesError && <p role="alert">{categoriesError}</p>}
-      {isNotFound && <p>Category not found.</p>}
-      {category && (
-        <details style={{ marginBottom: 24 }}>
-          <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Filter stories</summary>
-          {filtersError && <p role="alert">{filtersError}</p>}
-          {!filtersError && !filterOptions && <p>Loading filters…</p>}
-          {filterOptions && (
-            <div style={{ display: 'grid', gap: 16, padding: '16px 0' }}>
-              <label style={{ display: 'grid', gap: 6 }}>
-                Good-news type
-                <select
-                  value={draftFilters.goodKind}
-                  onChange={(event) => setDraftFilters({ ...draftFilters, goodKind: event.target.value })}
-                >
-                  <option value="">All types</option>
-                  {filterOptions.goodKinds.map((kind) => (
-                    <option key={kind.id} value={kind.id}>{kind.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label style={{ display: 'grid', gap: 6 }}>
-                Source country
-                <select
-                  value={draftFilters.country}
-                  onChange={(event) => setDraftFilters({ ...draftFilters, country: event.target.value })}
-                >
-                  <option value="">All countries</option>
-                  {filterOptions.countries.map((country) => (
-                    <option key={country.code} value={country.code}>{country.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label style={{ display: 'grid', gap: 6 }}>
-                Minimum good-news score: {draftFilters.minScore.toFixed(2)}
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={draftFilters.minScore}
-                  onChange={(event) => setDraftFilters({
-                    ...draftFilters,
-                    minScore: Number(event.target.value),
-                  })}
-                />
-              </label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={applyFilters}>Apply filters</button>
-                <button type="button" onClick={resetFilters}>Reset</button>
-              </div>
-            </div>
-          )}
-        </details>
-      )}
-      {articlesError && <p role="alert">{articlesError}</p>}
-      {!isNotFound && !articlesError && articles.length === 0 && <p>No good news yet.</p>}
-      {!isNotFound && articles.map((a) => (
-        <article key={a.id} style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-          {a.image_url && <img src={a.image_url} alt="" width={120} height={80} style={{ objectFit: 'cover' }} />}
-          <div>
-            <a href={a.url}><strong>{a.title}</strong></a>
-            <p>{a.summary}</p>
-            <small>{a.source} · {a.category} · {a.published_at ?? a.fetched_at}</small>
+      {isNotFound && <p className="empty-state">Category not found.</p>}
+
+      {!category && !isNotFound && (
+        <>
+          <section className="home-intro">
+            <h1>Good news, only.</h1>
+            <p>We read headlines from lots of outlets and keep the ones that will make your day better. No doomscrolling.</p>
+          </section>
+          <WorldMap />
+          <div className="feed-heading">
+            <h2>Today&apos;s good news</h2>
+            <p>Mixed from every category · latest 10 · 80%+ good</p>
           </div>
-        </article>
-      ))}
-      {hasMore && <button onClick={() => setPage((current) => current + 1)}>Load more</button>}
+        </>
+      )}
+
+      {category && (
+        <>
+          <section className="category-intro">
+            <a className="back-home" href="/">← Back to home</a>
+            <h1>{category.label}</h1>
+            <p>Only stories rated 80% good or higher. Showing the latest 20.</p>
+          </section>
+          <details className="filter-panel">
+            <summary>Filter stories</summary>
+            {filtersError && <p className="status-message" role="alert">{filtersError}</p>}
+            {!filtersError && !filterOptions && <p className="status-message">Loading filters…</p>}
+            {filterOptions && (
+              <div className="filter-controls">
+                <label>
+                  Good-news type
+                  <select
+                    value={draftFilters.goodKind}
+                    onChange={(event) => setDraftFilters({ ...draftFilters, goodKind: event.target.value })}
+                  >
+                    <option value="">All types</option>
+                    {filterOptions.goodKinds.map((kind) => (
+                      <option key={kind.id} value={kind.id}>{kind.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Source country
+                  <select
+                    value={draftFilters.country}
+                    onChange={(event) => setDraftFilters({ ...draftFilters, country: event.target.value })}
+                  >
+                    <option value="">All countries</option>
+                    {filterOptions.countries.map((item) => (
+                      <option key={item.code} value={item.code}>{item.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Minimum good-news score: {draftFilters.minScore.toFixed(2)}
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={draftFilters.minScore}
+                    onChange={(event) => setDraftFilters({
+                      ...draftFilters,
+                      minScore: Number(event.target.value),
+                    })}
+                  />
+                </label>
+                <div className="filter-actions">
+                  <button className="button-primary" type="button" onClick={applyFilters}>Apply filters</button>
+                  <button className="button-secondary" type="button" onClick={resetFilters}>Reset</button>
+                </div>
+              </div>
+            )}
+          </details>
+        </>
+      )}
+
+      {articlesError && <p className="status-message" role="alert">{articlesError}</p>}
+      {isLoading && !articlesError && <p className="status-message">Finding the latest good news…</p>}
+      {!isLoading && !articlesError && !isNotFound && articles.length === 0 && (
+        <p className="empty-state">No good news yet.</p>
+      )}
+      {!isNotFound && articles.length > 0 && (
+        <section className={category ? 'article-list' : 'article-grid'} aria-label="Good news articles">
+          {articles.map((article) => <ArticleCard key={article.id} article={article} />)}
+        </section>
+      )}
+      {hasMore && (
+        <div className="feed-actions">
+          <button className="load-more" onClick={() => setPage((current) => current + 1)}>
+            Load more stories
+          </button>
+          <span className="feed-count">Showing {articles.length} stories</span>
+        </div>
+      )}
+
+      <footer className="site-footer">
+        <p>Headlines link to the original publishers. Stories are selected for their good-news score.</p>
+        <p>Open source · MIT licence</p>
+      </footer>
     </main>
   );
 }

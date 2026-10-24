@@ -15,8 +15,11 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "i18n-iso-countries": "^7.14.0",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "react-simple-maps": "^5.0.5",
+    "world-atlas": "^2.0.2"
   },
   "devDependencies": {
     "@faker-js/faker": "^10.6.0",

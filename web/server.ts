@@ -54,6 +54,29 @@ createServer((req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/map-countries') {
+    const countries = db.prepare(`
+      SELECT source_country AS code, count(*) AS article_count
+      FROM articles
+      WHERE source_country IS NOT NULL
+        AND good_score >= :min_score
+        AND duplicate_of IS NULL
+        AND coalesce(credibility_score, 1) >= :min_credibility
+      GROUP BY source_country
+      ORDER BY source_country`).all({
+      min_score: DEFAULT_MIN_SCORE,
+      min_credibility: MIN_CREDIBILITY,
+    }) as { code: string; article_count: number }[];
+    const displayNames = new Intl.DisplayNames(['en'], { type: 'region' });
+    const body = countries.map(({ code, article_count }) => ({
+      code,
+      name: displayNames.of(code) ?? code,
+      article_count,
+    }));
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(body));
+    return;
+  }
+
   if (url.pathname === '/api/articles') {
     const minScore = Number(url.searchParams.get('min_score') ?? DEFAULT_MIN_SCORE);
     const limit = Number(url.searchParams.get('limit') ?? DEFAULT_LIMIT);
