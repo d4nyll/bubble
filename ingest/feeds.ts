@@ -56,6 +56,24 @@ export const FEEDS: Feed[] = [
   { source: 'Undark', url: 'https://undark.org/feed/' },
   { source: 'Dialogue Earth', url: 'https://dialogue.earth/feed/' },
   { source: 'Nautilus', url: 'https://nautil.us/feed/' },
+  // Scientific journals. Corrections, retractions and tables of contents are skipped in ingest.ts.
+  { source: 'Nature', url: 'https://www.nature.com/nature.rss' },
+  { source: 'Nature Communications', url: 'https://www.nature.com/ncomms.rss' },
+  { source: 'Science', url: 'https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=science' },
+  { source: 'Science', url: 'https://www.science.org/rss/news_current.xml' },
+  { source: 'Science Advances', url: 'https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=sciadv' },
+  { source: 'Cell', url: 'https://www.cell.com/cell/inpress.rss' },
+  { source: 'PNAS', url: 'https://www.pnas.org/action/showFeed?type=etoc&feed=rss&jc=pnas' },
+  { source: 'The Lancet', url: 'https://www.thelancet.com/rssfeed/lancet_current.xml' },
+  { source: 'NEJM', url: 'https://www.nejm.org/action/showFeed?jc=nejm&type=etoc&feed=rss' },
+  { source: 'BMJ', url: 'https://www.bmj.com/rss/recent.xml' },
+  { source: 'PLOS ONE', url: 'https://journals.plos.org/plosone/feed/atom' },
+  { source: 'eLife', url: 'https://elifesciences.org/rss/recent.xml' },
+  // Science news
+  { source: 'New Scientist', url: 'https://www.newscientist.com/feed/home/' },
+  { source: 'Scientific American', url: 'https://www.scientificamerican.com/platform/syndication/rss/' },
+  { source: 'ScienceDaily', url: 'https://www.sciencedaily.com/rss/all.xml' },
+  { source: 'Phys.org', url: 'https://phys.org/rss-feed/' },
   // Regional: the most-read English-language outlet per UN member state of 5 million people or more
   // Africa
   { source: 'Legit.ng', url: 'https://www.legit.ng/rss/all.rss' }, // Nigeria

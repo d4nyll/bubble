@@ -9,6 +9,8 @@ const INTERVAL_MS = 10 * 60 * 1000;
 const TIMEOUT_MS = 60 * 1000;
 // Reddit answers 429 Too Many Requests to quick unauthenticated requests, so space them out.
 const REDDIT_GAP_MS = 30 * 1000;
+// Journal feeds also list corrections, retractions and tables of contents, which aren't news.
+const NOT_ARTICLES = /^(author correction|correction|publisher correction|erratum|retraction|expression of concern|in this issue)\b/i;
 const USER_AGENT = 'bubble-news-aggregator/0.1 (https://github.com/d4nyll/bubble)';
 
 const db = connect();
@@ -105,8 +107,8 @@ async function fetchRss(feed: Feed): Promise<Row[]> {
   const reddit = feed.kind === 'reddit';
   return items.flatMap((item: Item) => {
     const url = reddit ? redditArticleUrl(item) : item.link;
-    const title = textOf(item.title).replace(/\s+/g, ' ').trim();
-    if (!url || !title) return [];
+    const title = decodeEntities(textOf(item.title)).replace(/\s+/g, ' ').trim();
+    if (!url || !title || NOT_ARTICLES.test(title)) return [];
     return [{
       url,
       // A subreddit entry's only category is the subreddit, and its content is "submitted by /u/...".
