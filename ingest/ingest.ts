@@ -1,37 +1,29 @@
-// Fetch RSS feeds every 10 minutes and store new articles unclassified.
+// Fetch every feed in feeds.ts every 10 minutes and store new articles unclassified.
 // classify.ts picks them up. Started by server.ts.
 import Parser from 'rss-parser';
 import { connect } from '../db/db.ts';
+import { FEEDS, type Feed } from './feeds.ts';
 
-// Any RSS or Atom feed works here: rss-parser gives every feed the same item shape,
-// and imageOf(), categoryOf() and summaryOf() below handle the few ways outlets differ.
-const FEEDS = [
-  // General news
-  { source: 'BBC', url: 'https://feeds.bbci.co.uk/news/rss.xml' },
-  { source: 'Guardian', url: 'https://www.theguardian.com/world/rss' },
-  { source: 'Sky News', url: 'https://feeds.skynews.com/feeds/rss/home.xml' },
-  { source: 'Al Jazeera', url: 'https://www.aljazeera.com/xml/rss/all.xml' },
-  { source: 'NPR', url: 'https://feeds.npr.org/1001/rss.xml' },
-  { source: 'New York Times', url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml' },
-  { source: 'ABC News (Australia)', url: 'https://www.abc.net.au/news/feed/51120/rss.xml' },
-  // Science and technology
-  { source: 'BBC', url: 'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml' },
-  { source: 'Guardian', url: 'https://www.theguardian.com/science/rss' },
-  { source: 'The Conversation', url: 'https://theconversation.com/uk/articles.atom' },
-  { source: 'Ars Technica', url: 'https://feeds.arstechnica.com/arstechnica/index' },
-  { source: 'Wired', url: 'https://www.wired.com/feed/rss' },
-  // Good-news outlets
-  { source: 'Positive News', url: 'https://www.positive.news/feed/' },
-  { source: 'Good News Network', url: 'https://www.goodnewsnetwork.org/feed/' },
-  { source: 'Reasons to be Cheerful', url: 'https://reasonstobecheerful.world/feed/' },
-];
 const SUMMARY_MAX = 500;
 const INTERVAL_MS = 10 * 60 * 1000;
+const TIMEOUT_MS = 60 * 1000;
+// Reddit answers 429 Too Many Requests to quick unauthenticated requests, so space them out.
+const REDDIT_GAP_MS = 30 * 1000;
+const USER_AGENT = 'bubble-news-aggregator/0.1 (https://github.com/d4nyll/bubble)';
 
 const db = connect();
 const insert = db.prepare(`
   INSERT OR IGNORE INTO articles (url, source, source_category, title, summary, image_url, published_at)
   VALUES (:url, :source, :source_category, :title, :summary, :image_url, :published_at)`);
+
+type Row = {
+  url: string;
+  source_category: string | null;
+  title: string;
+  summary: string | null;
+  image_url: string | null;
+  published_at: string | null;
+};
 
 type Media = { $?: { url?: string } };
 type CustomFields = {
@@ -41,7 +33,6 @@ type CustomFields = {
   contentEncoded?: string;
 };
 const parser = new Parser<{}, CustomFields>({
-  timeout: 20000,
   customFields: {
     item: [
       ['media:thumbnail', 'thumbnail'],
@@ -53,11 +44,32 @@ const parser = new Parser<{}, CustomFields>({
 });
 type Item = Parser.Item & CustomFields;
 
-// Outlets put the picture in different places. Al Jazeera, Positive News and
-// Good News Network put none in their feeds, so their articles get no image.
+// fetch() rather than parser.parseURL(), because fetch decompresses gzip and brotli responses
+// (The Independent, The Tico Times) and rss-parser doesn't.
+async function get(url: string): Promise<string> {
+  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.text();
+}
+
+const decodeEntities = (s: string) =>
+  s.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&(amp|lt|gt|quot|apos|nbsp|hellip);/g, (_, e: string) =>
+      ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', hellip: '…' })[e]!);
+const stripHtml = (html: string) => decodeEntities(html.replace(/<[^>]*>/g, ' '));
+
+// Collapse whitespace. Some feeds (The Conversation) carry the whole article, so keep the first
+// SUMMARY_MAX characters, cut at a word.
+function summarise(text: string | undefined): string {
+  const t = (text ?? '').replace(/\s+/g, ' ').trim();
+  return t.length <= SUMMARY_MAX ? t : t.slice(0, t.lastIndexOf(' ', SUMMARY_MAX)) + '…';
+}
+
+// Outlets put the picture in different places. Some (Al Jazeera, Positive News) put none in their feeds.
 function imageOf(item: Item): string | null {
-  return item.thumbnail?.$?.url // BBC, Sky News
-    ?? item.mediaContent?.$?.url // Guardian, New York Times, Wired, Ars Technica
+  return item.thumbnail?.$?.url // BBC, Sky News, Reddit
+    ?? item.mediaContent?.$?.url // Guardian, New York Times, Wired
     ?? item.mediaGroup?.['media:content']?.[0]?.$?.url // ABC News
     ?? (item.enclosure?.type?.startsWith('image/') ? item.enclosure.url : undefined)
     ?? /<img[^>]+src=["']([^"']+)["']/.exec(item.contentEncoded ?? item.content ?? '')?.[1] // NPR, The Conversation
@@ -70,35 +82,72 @@ function categoryOf(item: Item): string | null {
   return (typeof c === 'string' ? c : (c as { _?: string } | undefined)?._) ?? null;
 }
 
-// Some feeds (The Conversation) carry the whole article. Keep the first SUMMARY_MAX characters, cut at a word.
-function summaryOf(item: Item): string {
-  const text = (item.contentSnippet ?? '').replace(/\s+/g, ' ').trim();
-  return text.length <= SUMMARY_MAX ? text : text.slice(0, text.lastIndexOf(' ', SUMMARY_MAX)) + '…';
+// Feeds that put raw HTML in a title (The Daily Star wraps it in <a>) come out of rss-parser as nested
+// objects. Collect the text from them.
+function textOf(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map(textOf).join(' ');
+  if (value && typeof value === 'object') {
+    return Object.entries(value).filter(([key]) => key !== '$').map(([, v]) => textOf(v)).join(' ');
+  }
+  return '';
 }
 
-async function ingest(source: string, feedUrl: string) {
-  const feed = await parser.parseURL(feedUrl);
-  let added = 0;
-  for (const item of feed.items) {
-    if (!item.link || !item.title) continue;
-    added += Number(insert.run({
-      url: item.link,
-      source,
-      source_category: categoryOf(item),
-      title: item.title.trim(),
-      summary: summaryOf(item),
+// A Reddit post's feed entry links to the comments page. The article it shares is the "[link]" in the content.
+// Text posts link back to Reddit itself, so they have no article and get skipped.
+function redditArticleUrl(item: Item): string | null {
+  const url = /<a href="([^"]+)">\[link\]<\/a>/.exec(item.content ?? '')?.[1];
+  return url && !new URL(url).hostname.endsWith('reddit.com') ? url : null;
+}
+
+async function fetchRss(feed: Feed): Promise<Row[]> {
+  const { items } = await parser.parseString(await get(feed.url));
+  const reddit = feed.kind === 'reddit';
+  return items.flatMap((item: Item) => {
+    const url = reddit ? redditArticleUrl(item) : item.link;
+    const title = textOf(item.title).replace(/\s+/g, ' ').trim();
+    if (!url || !title) return [];
+    return [{
+      url,
+      // A subreddit entry's only category is the subreddit, and its content is "submitted by /u/...".
+      source_category: reddit ? null : categoryOf(item),
+      title,
+      summary: reddit ? null : summarise(item.contentSnippet),
       image_url: imageOf(item),
       published_at: item.isoDate ?? null,
-    }).changes);
-  }
-  console.log(`ingest: ${source} ${feedUrl}: ${feed.items.length} items, ${added} new`);
+    }];
+  });
+}
+
+// For WordPress sites without a working feed (Citi Newsroom). feed.url is the site's /wp-json/wp/v2/posts endpoint.
+type WordPressPost = { link: string; date_gmt: string; title: { rendered: string }; excerpt: { rendered: string } };
+async function fetchWordPress(feed: Feed): Promise<Row[]> {
+  const posts = JSON.parse(await get(feed.url)) as WordPressPost[];
+  return posts.map((p) => ({
+    url: p.link,
+    source_category: null,
+    title: stripHtml(p.title.rendered).trim(),
+    summary: summarise(stripHtml(p.excerpt.rendered)),
+    image_url: null,
+    published_at: `${p.date_gmt}Z`,
+  }));
+}
+
+export const fetchFeed = (feed: Feed) => (feed.kind === 'wordpress' ? fetchWordPress(feed) : fetchRss(feed));
+
+async function ingest(feed: Feed) {
+  const rows = await fetchFeed(feed);
+  let added = 0;
+  for (const row of rows) added += Number(insert.run({ ...row, source: feed.source }).changes);
+  console.log(`ingest: ${feed.source} ${feed.url}: ${rows.length} items, ${added} new`);
 }
 
 export async function runIngest() {
   while (true) {
-    for (const { source, url } of FEEDS) {
+    for (const feed of FEEDS) {
+      if (feed.kind === 'reddit') await new Promise((resolve) => setTimeout(resolve, REDDIT_GAP_MS));
       // One broken feed shouldn't stop the others.
-      await ingest(source, url).catch((err) => console.error(`ingest: ${url}: ${err.message}`));
+      await ingest(feed).catch((err) => console.error(`ingest: ${feed.url}: ${err.message}`));
     }
     await new Promise((resolve) => setTimeout(resolve, INTERVAL_MS));
   }
