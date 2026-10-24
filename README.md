@@ -39,9 +39,10 @@ A news aggregator that shows only good news.
 Requires Node.js 24 (it runs `.ts` files directly and has `node:sqlite` built in).
 
 ```sh
-cd ingest && npm install && npm run ingest   # first run downloads ~1.7 GB of Laya weights
-cd web && npm install && npm run api         # terminal 1
-cd web && npm run dev                        # terminal 2, open http://localhost:5173
+cd ingest && npm install && npm run ingest     # first run downloads ~1.7 GB of Laya weights
+cd web && npm install && npm run seed -- 1000  # optional: 1000 fake articles, no model needed
+cd web && npm run api                          # terminal 1
+cd web && npm run dev                          # terminal 2, open http://localhost:5173
 ```
 
 ## API (owned by Vat, change freely)
