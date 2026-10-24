@@ -1,45 +1,49 @@
-// Fetch RSS feeds, classify each new item, store it. Run: npm run ingest
+// Fetch RSS feeds and store new articles unclassified. Run: npm run ingest
+// classify.ts picks them up separately.
 import Parser from 'rss-parser';
-import { connect, type Category } from '../db/db.ts';
-import { classify } from './classify.ts';
+import { connect } from '../db/db.ts';
 
 const FEEDS: Record<string, string> = {
   BBC: 'https://feeds.bbci.co.uk/news/rss.xml',
   Guardian: 'https://www.theguardian.com/world/rss',
 };
+const INTERVAL_MS = 10 * 60 * 1000;
 
 const db = connect();
-const categories = db.prepare('SELECT * FROM categories').all() as unknown as Category[];
-const exists = db.prepare('SELECT 1 FROM articles WHERE url = ?');
 const insert = db.prepare(`
-  INSERT INTO articles (url, source, source_category, title, summary, image_url, published_at, category, good_score)
-  VALUES (:url, :source, :source_category, :title, :summary, :image_url, :published_at, :category, :good_score)`);
+  INSERT OR IGNORE INTO articles (url, source, source_category, title, summary, image_url, published_at)
+  VALUES (:url, :source, :source_category, :title, :summary, :image_url, :published_at)`);
 
 type Item = { thumbnail?: { $: { url: string } }; mediaContent?: { $: { url: string } } };
+// BBC gives categories as strings, the Guardian as { _: 'Ebola', $: { domain } }.
+type FeedCategory = string | { _?: string };
+const categoryName = (c?: FeedCategory) => (typeof c === 'string' ? c : c?._) ?? null;
 const parser = new Parser<{}, Item>({
   customFields: { item: [['media:thumbnail', 'thumbnail'], ['media:content', 'mediaContent']] },
 });
 
-for (const [source, feedUrl] of Object.entries(FEEDS)) {
+async function ingest(source: string, feedUrl: string) {
   const feed = await parser.parseURL(feedUrl);
   let added = 0;
   for (const item of feed.items) {
-    if (!item.link || !item.title || exists.get(item.link)) continue;
-    const summary = item.contentSnippet ?? '';
-    const { goodScore, category } = await classify(categories, item.title, summary);
-    insert.run({
+    if (!item.link || !item.title) continue;
+    added += Number(insert.run({
       url: item.link,
       source,
-      source_category: item.categories?.[0] ?? null,
+      source_category: categoryName(item.categories?.[0] as FeedCategory | undefined),
       title: item.title,
-      summary,
+      summary: item.contentSnippet ?? '',
       image_url: item.thumbnail?.$.url ?? item.mediaContent?.$.url ?? null,
       published_at: item.isoDate ?? null,
-      category,
-      good_score: goodScore,
-    });
-    added++;
+    }).changes);
   }
   console.log(`${source}: ${feed.items.length} items, ${added} new`);
 }
-process.exit(0);
+
+while (true) {
+  for (const [source, feedUrl] of Object.entries(FEEDS)) {
+    // One broken feed shouldn't stop the others.
+    await ingest(source, feedUrl).catch((err) => console.error(`${source}: ${err.message}`));
+  }
+  await new Promise((resolve) => setTimeout(resolve, INTERVAL_MS));
+}

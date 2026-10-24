@@ -20,6 +20,6 @@ export interface Article {
   image_url: string | null;
   published_at: string | null;
   fetched_at: string;
-  category: CategoryId;
-  good_score: number;
+  category: CategoryId | null;  // null until classified
+  good_score: number | null;    // null until classified
 }

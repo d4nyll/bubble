@@ -4,7 +4,8 @@
   "description": "",
   "scripts": {
     "ingest": "node ingest.ts",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "classify": "node classify.ts"
   },
   "keywords": [],
   "author": "",

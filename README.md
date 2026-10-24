@@ -33,6 +33,7 @@ A news aggregator that shows only good news.
 
 - `categories`: our 10 standard categories, condensed from the 17 [IPTC Media Topics](https://cv.iptc.org/newscodes/mediatopic/). The classifier picks one per article from `description`, and the frontend shows `label`.
 - `articles.good_score`: the classifier's probability (0 to 1) that the article is good news. The API decides the cut-off for "good" at request time.
+- `articles.category` and `articles.good_score` are NULL until the classifier has processed the article. The API never returns those rows.
 
 ## Run
 
@@ -40,12 +41,12 @@ Working on the API or frontend only? Follow [`web/README.md`](web/README.md) ins
 
 Requires Node.js 24 (it runs `.ts` files directly and has `node:sqlite` built in).
 
-Ingest (the first run downloads ~1.7 GB of Laya weights):
+Ingest and classify run as two separate processes, in two terminals in `ingest/`. Ingest stores new articles every 10 minutes with `category` and `good_score` left NULL. Classify polls for those rows and fills both in. The first classify run downloads ~1.7 GB of Laya weights.
 
 ```sh
-cd ingest
 npm install
-npm run ingest
+npm run ingest     # terminal 1
+npm run classify   # terminal 2
 ```
 
 Web, using two terminals in `web/`:
