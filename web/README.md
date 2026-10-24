@@ -26,9 +26,9 @@ npm run dev   # React app on http://localhost:5173
 
 Vite forwards every `/api` request from port 5173 to the API on port 3001, so the React code calls `fetch('/api/...')` with no host.
 
-The homepage at `/` shows a map of countries with eligible stories and the latest 10 articles. Hover or focus a highlighted country to preview its latest story. Each category has a URL based on its ID, such as `/technology` or `/world`. Category pages show 20 articles at a time and provide a load-more button.
+The homepage at `/` shows a map of countries with eligible stories and the latest 10 articles. Hover or focus a highlighted country to preview its latest story. Each category has a URL based on its ID, such as `/technology` or `/world`. Category pages show 20 articles at a time and provide a load-more button. Each topic has a page at `/topics/<id>`, such as `/topics/wildlife`, and every article card links to the pages of its topics. The mood dial above every page sets the lowest good-news score shown everywhere, from 0.3 to 0.95, and the browser remembers it.
 
-`GET /api/articles` supports `min_score`, `category`, `good_kind`, `country`, `limit`, and `page` query parameters. It defaults to a score of 0.8 and sorts articles newest first. The map gets countries with eligible stories from `GET /api/map-countries`. Category pages get available kind and country options from `GET /api/article-filters?category=technology`.
+`GET /api/articles` supports `min_score`, `category`, `good_kind`, `country`, `topic`, `limit`, and `page` query parameters. It defaults to a score of 0.8 and sorts articles newest first. Each article comes with `topics` (`[{ id, label }]`) and `other_outlets`, the number of other outlets that covered the same story. The map gets countries with eligible stories from `GET /api/map-countries?min_score=0.8`. Category pages get available kind and country options from `GET /api/article-filters?category=technology&min_score=0.8`. `GET /api/topics` lists every topic.
 
 ## What you own
 

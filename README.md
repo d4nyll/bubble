@@ -91,5 +91,4 @@ npm run dev         # terminal 2, open http://localhost:5173
 
 ## API (owned by Vat, change freely)
 
-- `GET /api/categories`: all categories, in display order.
-- `GET /api/articles?category=science&min_score=0.7`: up to 100 articles with `good_score >= min_score`, newest first. Omit `category` for all categories. `min_score` defaults to 0.5.
+[`web/README.md`](web/README.md) lists the endpoints.

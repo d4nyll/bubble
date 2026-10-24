@@ -21,7 +21,7 @@ type ArticlesResponse = {
 
 isoCountries.registerLocale(enLocale);
 
-export default function WorldMap() {
+export default function WorldMap({ minScore }: { minScore: number }) {
   const [countries, setCountries] = useState<MapCountry[]>([]);
   const [countriesLoaded, setCountriesLoaded] = useState(false);
   const [activeCode, setActiveCode] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export default function WorldMap() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch('/api/map-countries', { signal: controller.signal })
+    fetch(`/api/map-countries?min_score=${minScore}`, { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error(`Map countries request failed (${response.status})`);
         return response.json() as Promise<MapCountry[]>;
@@ -51,7 +51,7 @@ export default function WorldMap() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [minScore]);
 
   useEffect(() => {
     if (!activeCode) {
@@ -68,7 +68,7 @@ export default function WorldMap() {
 
     const params = new URLSearchParams({
       country: activeCode,
-      min_score: '0.8',
+      min_score: String(minScore),
       limit: '1',
       page: '1',
     });
@@ -88,7 +88,7 @@ export default function WorldMap() {
       });
 
     return () => controller.abort();
-  }, [activeCode]);
+  }, [activeCode, minScore]);
 
   return (
     <section className="world-map-section" aria-label="Good news around the world">
