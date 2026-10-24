@@ -36,6 +36,8 @@ A news aggregator that shows only good news.
 
 ## Run
 
+Working on the API or frontend only? Follow [`web/README.md`](web/README.md) instead. It skips ingest and the model download.
+
 Requires Node.js 24 (it runs `.ts` files directly and has `node:sqlite` built in).
 
 ```sh
