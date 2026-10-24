@@ -10,7 +10,7 @@ You need Node.js 24 or later, because it runs `.ts` files directly and has SQLit
 git clone https://github.com/d4nyll/bubble.git
 cd bubble/web
 npm install
-npm run seed -- 1000   # adds 1000 fake articles to ../db/bubble.db
+npm run seed 1000   # adds 1000 fake articles to ../db/bubble.db
 ```
 
 The seed script adds to whatever is already there. To start over, delete `db/bubble.db` and run it again.

@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 export type * from './types.ts';
 
-const DB_PATH = new URL('./bubble.db', import.meta.url).pathname;
+const DB_PATH = fileURLToPath(new URL('./bubble.db', import.meta.url));
 
 export function connect(): DatabaseSync {
   const db = new DatabaseSync(DB_PATH);

@@ -1,11 +1,11 @@
-// Fill db/bubble.db with fake articles for frontend work. Run: npm run seed -- 1000
+// Fill db/bubble.db with fake articles for frontend work. Run: npm run seed 1000
 // Appends to existing rows. Delete db/bubble.db to start over.
 import { faker } from '@faker-js/faker';
 import { connect, type Category } from '../db/db.ts';
 
 const count = Number(process.argv[2] ?? 100);
 if (!Number.isInteger(count) || count < 1) {
-  console.error('Usage: npm run seed -- <number of articles>');
+  console.error('Usage: npm run seed <number of articles>');
   process.exit(1);
 }
 
