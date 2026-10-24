@@ -39,7 +39,8 @@ Vite forwards every `/api` request from port 5173 to the API on port 3001, so th
 The `articles` and `categories` tables in `../db/schema.sql`, and their TypeScript types in `../db/types.ts`. Daniel's ingest job writes the rows and your API only reads them.
 
 - `articles.good_score` is the classifier's probability (0 to 1) that the article is good news. Your API decides the cut-off. `/api/articles` uses `min_score`, which defaults to 0.5.
-- `articles.category` is always one of the 10 `categories.id` values. Show `categories.label` to readers.
+- `articles.category` and `articles.good_score` are NULL until Daniel's classifier has processed the article. The API's `good_score >= min_score` check already leaves those rows out, so the frontend only sees classified articles.
+- `articles.category` is one of the 10 `categories.id` values once classified. Show `categories.label` to readers.
 - `summary` is plain text with no HTML.
 - `published_at` can be null. Fall back to `fetched_at`.
 

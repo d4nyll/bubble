@@ -2,6 +2,8 @@
 -- ingest writes `articles`; web only reads. Change this file together.
 
 PRAGMA foreign_keys = ON;
+PRAGMA journal_mode = WAL;  -- lets the ingest, classify and API processes share the file
+PRAGMA busy_timeout = 5000; -- wait up to 5 s for another process's write instead of failing
 
 -- Our standard categories, condensed from the 17 IPTC Media Topics
 -- (https://cv.iptc.org/newscodes/mediatopic/). `description` is what the
@@ -35,8 +37,9 @@ CREATE TABLE IF NOT EXISTS articles (
     image_url       TEXT,
     published_at    TEXT,                    -- ISO 8601 UTC, e.g. '2026-10-24T09:22:07Z'
     fetched_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    category        TEXT NOT NULL REFERENCES categories(id),
-    good_score      REAL NOT NULL CHECK (good_score BETWEEN 0 AND 1)  -- classifier's P(good news)
+    -- Both NULL until the classifier has processed the article.
+    category        TEXT REFERENCES categories(id),
+    good_score      REAL CHECK (good_score BETWEEN 0 AND 1)  -- classifier's P(good news)
 );
 
 CREATE INDEX IF NOT EXISTS articles_feed ON articles (category, published_at DESC);
