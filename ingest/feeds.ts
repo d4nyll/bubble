@@ -99,7 +99,7 @@ export const FEEDS: Feed[] = [
   { source: 'Mimi Mefo Info', url: 'https://mimimefoinfos.com/feed/', country: 'CM' }, // Cameroon
   { source: 'allAfrica', url: 'https://allafrica.com/tools/headlines/rdf/niger/headlines.rdf', country: 'NE' }, // Niger
   { source: 'allAfrica', url: 'https://allafrica.com/tools/headlines/rdf/mali/headlines.rdf', country: 'ML' }, // Mali
-  { source: 'allAfrica', url: 'https://allafrica.com/tools/headlines/rdf/burkinafaso/headlines.rdf', country: 'HV' }, // Burkina Faso
+  { source: 'allAfrica', url: 'https://allafrica.com/tools/headlines/rdf/burkinafaso/headlines.rdf', country: 'BF' }, // Burkina Faso
   { source: 'Nyasa Times', url: 'https://www.nyasatimes.com/feed/', country: 'MW' }, // Malawi
   { source: 'Lusaka Times', url: 'https://www.lusakatimes.com/feed/', country: 'ZM' }, // Zambia
   { source: 'allAfrica', url: 'https://allafrica.com/tools/headlines/rdf/chad/headlines.rdf', country: 'TD' }, // Chad
@@ -107,7 +107,7 @@ export const FEEDS: Feed[] = [
   { source: 'allAfrica', url: 'https://allafrica.com/tools/headlines/rdf/senegal/headlines.rdf', country: 'SN' }, // Senegal
   { source: 'The Herald', url: 'https://www.heraldonline.co.zw/feed/', country: 'ZW' }, // Zimbabwe, state-owned
   { source: 'KT Press', url: 'https://www.ktpress.rw/feed/', country: 'RW' }, // Rwanda
-  { source: 'allAfrica', url: 'https://allafrica.com/tools/headlines/rdf/benin/headlines.rdf', country: 'DY' }, // Benin
+  { source: 'allAfrica', url: 'https://allafrica.com/tools/headlines/rdf/benin/headlines.rdf', country: 'BJ' }, // Benin
   { source: 'allAfrica', url: 'https://allafrica.com/tools/headlines/rdf/burundi/headlines.rdf', country: 'BI' }, // Burundi
   { source: 'allAfrica', url: 'https://allafrica.com/tools/headlines/rdf/tunisia/headlines.rdf', country: 'TN' }, // Tunisia
   { source: 'Eye Radio', url: 'https://eyeradio.org/feed/', country: 'SS' }, // South Sudan
@@ -147,7 +147,7 @@ export const FEEDS: Feed[] = [
   { source: 'The Moscow Times', url: 'https://www.themoscowtimes.com/rss/news', country: 'RU' }, // Russia
   { source: 'DW', url: 'https://rss.dw.com/rdf/rss-en-all', country: 'DE' }, // Germany, state-owned
   { source: 'The Independent', url: 'https://www.independent.co.uk/news/uk/rss', country: 'GB' }, // United Kingdom
-  { source: 'France 24', url: 'https://www.france24.com/en/rss', country: 'FX' }, // France, state-owned
+  { source: 'France 24', url: 'https://www.france24.com/en/rss', country: 'FR' }, // France, state-owned
   { source: 'ANSA', url: 'https://www.ansa.it/english/news/english_nr_rss.xml', country: 'IT' }, // Italy
   { source: 'El País English', url: 'https://feeds.elpais.com/mrss-s/pages/ep/site/english.elpais.com/portada', country: 'ES' }, // Spain
   { source: 'The Kyiv Independent', url: 'https://kyivindependent.com/news-archive/rss/', country: 'UA' }, // Ukraine
@@ -163,7 +163,7 @@ export const FEEDS: Feed[] = [
   { source: 'Radio Free Europe/Radio Liberty', url: 'https://www.rferl.org/api/zgoiql-vomx-tpe-kmo', country: 'BY' }, // Belarus, state-owned
   { source: 'The Local Austria', url: 'https://feeds.thelocal.com/rss/at', country: 'AT' }, // Austria
   { source: 'SWI swissinfo.ch', url: 'https://www.swissinfo.ch/service/eng/rssxml/top-news/rss', country: 'CH' }, // Switzerland, state-owned
-  { source: 'Balkan Insight', url: 'https://balkaninsight.com/category/bi/serbia/feed/', country: 'YU' }, // Serbia
+  { source: 'Balkan Insight', url: 'https://balkaninsight.com/category/bi/serbia/feed/', country: 'RS' }, // Serbia
   { source: 'Novinite', url: 'https://www.novinite.com/services/news_rdf.php', country: 'BG' }, // Bulgaria
   { source: 'The Local Denmark', url: 'https://feeds.thelocal.com/rss/dk', country: 'DK' }, // Denmark
   { source: 'Yle News', url: 'https://yle.fi/rss/t/18-34837/en', country: 'FI' }, // Finland, state-owned
